@@ -1,4 +1,4 @@
-function solve(row, col, board) {
+function solve(row, col, board, step) {
     if (col >= board.length) {
         row += 1;
         col = 0;
@@ -7,7 +7,7 @@ function solve(row, col, board) {
         }  
     }
     if (board[row][col] != 0) {  // Won't check if board is written incorrectly, can be made to do so at performance cost
-        if (solve(row, col + 1, board)) {
+        if (solve(row, col + 1, board, step)) {
             return true;
         } else {
             return false;
@@ -17,7 +17,10 @@ function solve(row, col, board) {
     for (let i = 1; i <= 9; i++) {
         board[row][col] = i;
         if (validplacement(row, col, board)) {
-            if (solve(row, col + 1, board)) {
+            if (step){
+
+            }
+            if (solve(row, col + 1, board, step)) {
                 return true;
             }
         }
@@ -61,21 +64,134 @@ function validplacement(row, col, board) {
 
 
 function main() {
-    let board = [[5, 3, 4, 6, 7, 8, 9, 1, 2],
-                 [6, 7, 2, 1, 9, 5, 3, 4, 8],
-                 [1, 9, 8, 3, 4, 2, 5, 6, 7],
-                 [8, 5, 9, 7, 6, 1, 4, 2, 3],
-                 [4, 2, 6, 8, 5, 3, 7, 9, 1],
-                 [7, 1, 3, 9, 2, 4, 8, 5, 6],
-                 [9, 6, 1, 5, 3, 7, 2, 8, 4],
-                 [2, 8, 7, 4, 1, 9, 6, 3, 5],
-                 [3, 4, 5, 2, 8, 6, 1, 7, 9]];
-
-    let x = solve(0, 0, board)
-    console.log(x);
-    console.log(board);
-
+    let board = getNewBoard();
     setupCanvas(board);
+}
+
+function getNewBoard(){
+    board = [[], [], [], [], [], [], [], [], []]
+    var result = null;
+    var xmlhttp = new XMLHttpRequest();
+    xmlhttp.open("GET", "sudoku.csv", false);  // Change to async
+    xmlhttp.send();
+    if (xmlhttp.status==200) {
+      result = xmlhttp.responseText;
+    }
+    let puzzles = result.split("\n")
+    number = Math.floor(Math.random() * 10000);
+    lineBoard = puzzles[number];
+    for (let i = 0; i < 9; i++){
+        for (let j = 0; j < 9; j++){
+            board[i][j] = Number(lineBoard.charAt((i*9) + j));
+        }
+    }
+    return board;
+}
+
+function setupCanvas(board){
+    canvas = document.getElementById("sodoku");
+    canvas.board = board;
+    canvas.buttons = [new Button("Run", buttonRun, 60, 480, 85, 40), new Button("New", buttonNew, 300, 480, 95, 40)];
+    canvas.dim = canvas.getBoundingClientRect();
+    ctx = canvas.getContext("2d");
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 3;
+    drawCanvas();
+    canvas.addEventListener('click', clickedMouse);
+}
+
+
+function drawCanvas(evt){
+    drawGrid(10, 10, 460, 460);
+    stepSize = 50;
+    for (let i = 0; i < 9; i++){
+        for (let j = 0; j < 9; j++){
+            if(canvas.board[i][j] != 0){
+                drawText(canvas.board[i][j], (stepSize * i) + 24, (stepSize * j) + 53);
+            }
+        }
+    }
+    for(let i = 0; i < canvas.buttons.length; i++){
+        drawButton(canvas.buttons[i]);
+    }
+}
+
+
+function redrawCanvas(evt){
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawCanvas(canvas.board);
+}
+
+
+function drawLine(x1, y1, x2, y2){
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+}
+
+
+function drawGrid(x1, y1, x2, y2){
+    xStep = (x2 - x1) / 9;
+    yStep = (y2 - y1) / 9;
+    for (let i = 0; i < 10; i++){
+        if (i % 3 == 0){ctx.lineWidth = 5;}
+        else {ctx.lineWidth = 3;}
+        drawLine(x1 + (xStep * i), y1, x1 + (xStep * i), y2);
+        drawLine(x1, y1 + (yStep * i), x2, y1 + (yStep * i));
+    }
+}
+
+
+function drawText(text, x, y){
+    ctx.font = "40px arial";
+    ctx.fillText(text, x, y);
+}
+
+function drawButton(button){
+    ctx.rect(button.x, button.y, button.width, button.height);
+    ctx.stroke();
+    drawText(button.text, button.x + 5, button.y + button.height - 5);
+}
+
+function clickedMouse(evt) {
+    var mousePos = getMousePos(evt);
+    clickedButton(mousePos);
+}
+
+function clickedButton(mousePos){
+    for(let i = 0; i < canvas.buttons.length; i++){
+        if(isOnRect(mousePos, canvas.buttons[i])){
+            canvas.buttons[i].func();
+        }
+    }
+}
+
+function buttonRun(){
+    let x = solve(0, 0, canvas.board, false);
+    redrawCanvas();
+}
+
+function buttonNew(){
+    canvas.board = getNewBoard();
+    redrawCanvas();
+}
+
+function buttonStep(){
+    let x = solve(0, 0, canvas.board, true);
+}
+
+
+function isOnRect(pos, rect){
+    return pos.x > rect.x && pos.x < rect.x+rect.width && pos.y < rect.y+rect.height && pos.y > rect.y;
+}
+
+
+function getMousePos(evt){
+    let rect = canvas.getBoundingClientRect();
+    mousePos.x = Math.floor(evt.clientX - rect.left);
+    mousePos.y = Math.floor(evt.clientY - rect.top);
+    return mousePos;
 }
 
 
@@ -88,64 +204,17 @@ class MousePosition{
     }
 }
 
+class Button{
+    constructor(text, func, x, y, width, height){
+        this.text = text;
+        this.func = func;
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+    }
+}
+
 let mousePos = new MousePosition(0, 0);
-
-function setupCanvas(board){
-    canvas = document.getElementById("sodoku");
-    canvas.board = board;
-    ctx = canvas.getContext("2d");
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 3;
-    drawCanvas(board);
-    canvas.addEventListener("mousemove", redrawCanvas);
-}
-
-function drawCanvas(evt){
-    drawGrid(10, 10, 460, 460);
-    stepSize = 50;
-    for (let i = 0; i < 9; i++){
-        for (let j = 0; j < 9; j++){
-            drawText(canvas.board[i][j], (stepSize * i) + 20, (stepSize * j) + 53);
-        }
-    }
-    ctx.fillRect(120, 480, 50, 50)
-    ctx.fillRect(300, 480, 50, 50)
-}
-
-function redrawCanvas(evt){
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawCanvas(canvas.board);
-    getMousePos(evt);
-}
-
-function drawLine(x1, y1, x2, y2){
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-}
-
-function drawGrid(x1, y1, x2, y2){
-    xStep = (x2 - x1) / 9;
-    yStep = (y2 - y1) / 9;
-    for (let i = 0; i <= 9; i++){
-        if (i % 3 == 0){ctx.lineWidth = 5;}
-        else {ctx.lineWidth = 3;}
-        drawLine(x1 + (xStep * i), y1, x1 + (xStep * i), y2);
-        drawLine(x1, y1 + (yStep * i), x2, y1 + (yStep * i));
-    }
-}
-
-function drawText(text, x, y){
-    ctx.font = "40px arial";
-    ctx.fillText(text, x, y);
-}
-
-function getMousePos(evt){
-    let canvasDim = canvas.getBoundingClientRect();
-    mousePos.x = Math.floor(evt.clientX - canvasDim.left);
-    mousePos.y = Math.floor(evt.clientY - canvasDim.top);
-    return mousePos;
-}
 
 document.addEventListener("DOMContentLoaded", main);
