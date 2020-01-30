@@ -1,13 +1,13 @@
-function solve(row, col, board, step) {
-    if (col >= board.length) {
+async function solve(row, col, step) {
+    if (col >= canvas.board.length) {
         row += 1;
         col = 0;
-        if (row >= board[col].length) {
+        if (row >= canvas.board[col].length) {
             return true;
         }  
     }
     if (board[row][col] != 0) {  // Won't check if board is written incorrectly, can be made to do so at performance cost
-        if (solve(row, col + 1, board, step)) {
+        if (await solve(row, col + 1, step)) {
             return true;
         } else {
             return false;
@@ -15,34 +15,39 @@ function solve(row, col, board, step) {
     }
 
     for (let i = 1; i <= 9; i++) {
-        board[row][col] = i;
-        if (validplacement(row, col, board)) {
+        if (validplacement(i, row, col)) {
+            canvas.board[row][col] = i;
             if (step){
-
+                await asyncDraw();
             }
-            if (solve(row, col + 1, board, step)) {
+            if (await solve(row, col + 1, step)) {
                 return true;
             }
         }
-        board[row][col] = 0;
+        canvas.board[row][col] = 0;
+        if (step){
+            await asyncDraw();
+        }
     }
     return false;
 }
 
+async function asyncDraw(){
+    await new Promise(r => setTimeout(r, 50));
+    redrawCanvas();
+}
 
-function validplacement(row, col, board) {
-    for (let i = 0; i < board[row].length; i++) {
-        if (i == col) { continue; }
-        if (board[row][i] == board[row][col]) {return false;}
+function validplacement(numb, row, col) {
+    for (let i = 0; i < canvas.board[row].length; i++) {
+        if (board[row][i] == numb) {return false;}
     }
 
     let column = []
-    for (let i = 0; i < board.length; i++) {
+    for (let i = 0; i < canvas.board.length; i++) {
         column.push(board[i][col]);
     }
     for (let i = 0; i < column.length; i++) {
-        if (i == row) { continue; }
-        if (column[i] == board[row][col]) {return false;}
+        if (column[i] == numb) {return false;}
     }
 
     quadrow = Math.floor(row / 3) * 3;
@@ -50,13 +55,12 @@ function validplacement(row, col, board) {
     let quad = [[],[],[]]
     for (let i = quadrow; i < quadrow+3; i++) {
         for (let j = quadcol; j < quadcol+3; j++) {
-            quad[i - quadrow][j - quadcol] = board[i][j];
+            quad[i - quadrow][j - quadcol] = canvas.board[i][j];
         }
     }
     for (let i = 0; i < quad.length; i++) {
         for (let j = 0; j < quad[i].length; j++) {
-            if ((i == row - quadrow) && (j == col - quadcol)) {continue;}
-            if (quad[i][j] == board[row][col]) {return false;}
+            if (quad[i][j] == numb) {return false;}
         }
     }
     return true;
@@ -91,7 +95,7 @@ function getNewBoard(){
 function setupCanvas(board){
     canvas = document.getElementById("sodoku");
     canvas.board = board;
-    canvas.buttons = [new Button("Run", buttonRun, 60, 480, 85, 40), new Button("New", buttonNew, 300, 480, 95, 40)];
+    canvas.buttons = [new Button("Run", buttonRun, 60, 480, 85, 40), new Button("New", buttonNew, 300, 480, 95, 40), new Button("Step", buttonStep, 160, 480, 85, 40)];
     canvas.dim = canvas.getBoundingClientRect();
     ctx = canvas.getContext("2d");
     ctx.strokeStyle = "#000000";
@@ -101,7 +105,7 @@ function setupCanvas(board){
 }
 
 
-function drawCanvas(evt){
+function drawCanvas(){
     drawGrid(10, 10, 460, 460);
     stepSize = 50;
     for (let i = 0; i < 9; i++){
@@ -117,9 +121,9 @@ function drawCanvas(evt){
 }
 
 
-function redrawCanvas(evt){
+function redrawCanvas(){
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawCanvas(canvas.board);
+    drawCanvas();
 }
 
 
@@ -168,7 +172,7 @@ function clickedButton(mousePos){
 }
 
 function buttonRun(){
-    let x = solve(0, 0, canvas.board, false);
+    solve(0, 0, false);
     redrawCanvas();
 }
 
@@ -178,14 +182,13 @@ function buttonNew(){
 }
 
 function buttonStep(){
-    let x = solve(0, 0, canvas.board, true);
+    solve(0, 0, true);
 }
 
 
 function isOnRect(pos, rect){
     return pos.x > rect.x && pos.x < rect.x+rect.width && pos.y < rect.y+rect.height && pos.y > rect.y;
 }
-
 
 function getMousePos(evt){
     let rect = canvas.getBoundingClientRect();
@@ -197,6 +200,7 @@ function getMousePos(evt){
 
 let canvas;
 let ctx;
+
 class MousePosition{
     constructor(x, y){
         this.x = x;
