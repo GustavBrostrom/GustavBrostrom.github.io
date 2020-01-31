@@ -1,4 +1,4 @@
-async function solve(row, col, step) {
+async function solve(row = 0, col = 0) {
     if (col >= canvas.board.length) {
         row += 1;
         col = 0;
@@ -6,8 +6,8 @@ async function solve(row, col, step) {
             return true;
         }  
     }
-    if (board[row][col] != 0) {  // Won't check if board is written incorrectly, can be made to do so at performance cost
-        if (await solve(row, col + 1, step)) {
+    if (canvas.board[row][col] != 0) {  // Won't check if board is written incorrectly, can be made to do so at performance cost
+        if (await solve(row, col + 1)) {
             return true;
         } else {
             return false;
@@ -16,35 +16,36 @@ async function solve(row, col, step) {
 
     for (let i = 1; i <= 9; i++) {
         if (validplacement(i, row, col)) {
+            if (canvas.halt){return true;}
+
             canvas.board[row][col] = i;
-            if (step){
-                await asyncDraw();
-            }
-            if (await solve(row, col + 1, step)) {
+            await asyncDraw();
+
+            if (await solve(row, col + 1)) {
                 return true;
             }
         }
+        if (canvas.halt){return true;}
+
         canvas.board[row][col] = 0;
-        if (step){
-            await asyncDraw();
-        }
+        await asyncDraw();
     }
     return false;
 }
 
 async function asyncDraw(){
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 30));
     redrawCanvas();
 }
 
 function validplacement(numb, row, col) {
     for (let i = 0; i < canvas.board[row].length; i++) {
-        if (board[row][i] == numb) {return false;}
+        if (canvas.board[row][i] == numb) {return false;}
     }
 
     let column = []
     for (let i = 0; i < canvas.board.length; i++) {
-        column.push(board[i][col]);
+        column.push(canvas.board[i][col]);
     }
     for (let i = 0; i < column.length; i++) {
         if (column[i] == numb) {return false;}
@@ -95,37 +96,52 @@ function getNewBoard(){
 function setupCanvas(board){
     canvas = document.getElementById("sodoku");
     canvas.board = board;
-    canvas.buttons = [new Button("Run", buttonRun, 60, 480, 85, 40), new Button("New", buttonNew, 300, 480, 95, 40), new Button("Step", buttonStep, 160, 480, 85, 40)];
+    canvas.gridSize = 450
+    canvas.cellSize = 50
+    canvas.margin = 5
+    canvas.buttons = [new Button("Run", buttonRun, 60, 480, 85, 40), new Button("New", buttonNew, 320, 480, 92, 40), new Button("Blank", buttonBlank, 176, 480, 110, 40)];
     canvas.dim = canvas.getBoundingClientRect();
+    canvas.halt = false;
+    canvas.selectedRow = NaN;
+    canvas.selectedColumn = NaN;
     ctx = canvas.getContext("2d");
     ctx.strokeStyle = "#000000";
     ctx.lineWidth = 3;
     drawCanvas();
     canvas.addEventListener('click', clickedMouse);
+    document.addEventListener('keyup', pressedKey);
 }
 
 
 function drawCanvas(){
-    drawGrid(10, 10, 460, 460);
-    stepSize = 50;
-    for (let i = 0; i < 9; i++){
-        for (let j = 0; j < 9; j++){
-            if(canvas.board[i][j] != 0){
-                drawText(canvas.board[i][j], (stepSize * i) + 24, (stepSize * j) + 53);
-            }
-        }
-    }
+    drawGrid(canvas.margin, canvas.margin, canvas.gridSize + canvas.margin, canvas.gridSize + canvas.margin);
+    drawTextOnGrid();
     for(let i = 0; i < canvas.buttons.length; i++){
         drawButton(canvas.buttons[i]);
     }
+    drawSelected();
 }
 
+function drawSelected(){
+    if(!isNaN(canvas.selectedRow)){
+        ctx.beginPath();
+        x = (canvas.selectedColumn * canvas.cellSize) + canvas.margin;
+        y = (canvas.selectedRow * canvas.cellSize) + canvas.margin;
+        ctx.lineWidth = 7;
+        ctx.rect(x, y, canvas.cellSize, canvas.cellSize);
+        ctx.stroke();
+    }
+}
+
+function clearSelected(){
+    canvas.selectedRow = NaN;
+    canvas.selectedColumn = NaN;
+}
 
 function redrawCanvas(){
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawCanvas();
 }
-
 
 function drawLine(x1, y1, x2, y2){
     ctx.beginPath();
@@ -134,33 +150,45 @@ function drawLine(x1, y1, x2, y2){
     ctx.stroke();
 }
 
-
 function drawGrid(x1, y1, x2, y2){
-    xStep = (x2 - x1) / 9;
-    yStep = (y2 - y1) / 9;
     for (let i = 0; i < 10; i++){
         if (i % 3 == 0){ctx.lineWidth = 5;}
         else {ctx.lineWidth = 3;}
-        drawLine(x1 + (xStep * i), y1, x1 + (xStep * i), y2);
-        drawLine(x1, y1 + (yStep * i), x2, y1 + (yStep * i));
+        drawLine(x1 + (canvas.cellSize * i), y1, x1 + (canvas.cellSize * i), y2);
+        drawLine(x1, y1 + (canvas.cellSize * i), x2, y1 + (canvas.cellSize * i));
     }
 }
 
+function drawTextOnGrid(){
+    for (let i = 0; i < 9; i++){
+        for (let j = 0; j < 9; j++){
+            if(canvas.board[i][j] != 0){
+                drawText(canvas.board[i][j], (canvas.cellSize * i) + 19, (canvas.cellSize * j) + 48);
+            }
+        }
+    }
+}
 
-function drawText(text, x, y){
-    ctx.font = "40px arial";
+function drawText(text, x, y, font = "40px arial"){
+    ctx.font = font;
     ctx.fillText(text, x, y);
 }
 
 function drawButton(button){
+    ctx.lineWidth = 3;
     ctx.rect(button.x, button.y, button.width, button.height);
     ctx.stroke();
-    drawText(button.text, button.x + 5, button.y + button.height - 5);
+    drawText(button.text, button.x + canvas.margin, button.y + button.height - canvas.margin);
 }
 
 function clickedMouse(evt) {
     var mousePos = getMousePos(evt);
-    clickedButton(mousePos);
+    if(mousePos.y >= canvas.gridSize + canvas.margin){
+       clickedButton(mousePos); 
+    }
+    else{
+        clickedBoard(mousePos);
+    }
 }
 
 function clickedButton(mousePos){
@@ -171,20 +199,38 @@ function clickedButton(mousePos){
     }
 }
 
-function buttonRun(){
-    solve(0, 0, false);
+function clickedBoard(mousePos){
+    canvas.selectedColumn = Math.floor((mousePos.x - canvas.margin) / canvas.cellSize);
+    canvas.selectedRow = Math.floor((mousePos.y - canvas.margin) / canvas.cellSize);
     redrawCanvas();
+}
+
+function unsolvable(){
+    drawText("Unsolvable", 8, 260, "90px arial");
+}
+
+async function buttonRun(){
+    canvas.halt = false;
+    clearSelected();
+    let solvable = await solve();
+    console.log(solvable);
+    if(!solvable){
+        unsolvable();
+    }
 }
 
 function buttonNew(){
+    canvas.halt = true;
     canvas.board = getNewBoard();
+    clearSelected();
     redrawCanvas();
 }
 
-function buttonStep(){
-    solve(0, 0, true);
+function buttonBlank(){
+    canvas.board = [Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0)];
+    clearSelected();
+    redrawCanvas();
 }
-
 
 function isOnRect(pos, rect){
     return pos.x > rect.x && pos.x < rect.x+rect.width && pos.y < rect.y+rect.height && pos.y > rect.y;
@@ -197,9 +243,15 @@ function getMousePos(evt){
     return mousePos;
 }
 
-
-let canvas;
-let ctx;
+function pressedKey(evt){
+    key = Number(evt.code.charAt(evt.code.length - 1))
+    if (!isNaN(key) && !isNaN(canvas.selectedRow)){
+        if (validplacement(key, canvas.selectedColumn, canvas.selectedRow)){
+            canvas.board[canvas.selectedColumn][canvas.selectedRow] = key;
+            redrawCanvas();
+        }
+    }
+}
 
 class MousePosition{
     constructor(x, y){
@@ -219,6 +271,8 @@ class Button{
     }
 }
 
+let canvas;
+let ctx;
 let mousePos = new MousePosition(0, 0);
 
 document.addEventListener("DOMContentLoaded", main);
