@@ -100,7 +100,7 @@ function setupCanvas(board){
     canvas.cellSize = 50
     canvas.margin = 5
     canvas.buttons = [new Button("Run", buttonRun, 60, 480, 85, 40), new Button("New", buttonNew, 320, 480, 92, 40), new Button("Blank", buttonBlank, 176, 480, 110, 40)];
-    canvas.dim = canvas.getBoundingClientRect();
+    canvas.dim = canvas.getBoundingClientRect;
     canvas.halt = false;
     canvas.selectedRow = NaN;
     canvas.selectedColumn = NaN;
@@ -183,7 +183,7 @@ function drawButton(button){
 
 function clickedMouse(evt) {
     var mousePos = getMousePos(evt);
-    if(mousePos.y >= canvas.gridSize + canvas.margin){
+    if(mousePos.y >= canvas.dim().height * 0.825){
        clickedButton(mousePos); 
     }
     else{
@@ -213,7 +213,6 @@ async function buttonRun(){
     canvas.halt = false;
     clearSelected();
     let solvable = await solve();
-    console.log(solvable);
     if(!solvable){
         unsolvable();
     }
@@ -227,6 +226,7 @@ function buttonNew(){
 }
 
 function buttonBlank(){
+    canvas.halt = true;
     canvas.board = [Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0)];
     clearSelected();
     redrawCanvas();
