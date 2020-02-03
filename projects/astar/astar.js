@@ -1,20 +1,20 @@
 function main(){
     var canvas = new fabric.Canvas('canvas');
     canvas.hoverCursor = 'pointer';
+    canvas.renderOnAddRemove=false
+    canvas.skipTargetFind=false;
 
     var openTiles = [];
     var closedTiles = [];
     var board = [];
-    Tile.count = 20;
+    Tile.count = 30;
     Tile.size = (canvas.width / Tile.count);
 
     for(let y = 0; y < Tile.count; y++){
         board.push([]);
         for(let x = 0; x < Tile.count; x++){
             board[y][x]=new Tile(x, y);
-            board[y][x].outer.selectable = false;
             board[y][x].inner.selectable = false;
-            canvas.add(board[y][x].outer);
             canvas.add(board[y][x].inner);
         }
     }
@@ -27,6 +27,7 @@ function main(){
     canvas.on('mouse:down', function(e){
         clickedMouse(e, board, openTiles, closedTiles, buttons);
     });
+    canvas.renderAll();
 }
 
 function astar(board, openTiles, closedTiles){
@@ -159,7 +160,7 @@ function buttonReset(board, openTiles, closedTiles){
 
 function buttonRandom(board, openTiles, closedTiles){
     buttonReset(board, openTiles, closedTiles);
-    for(let i = 0; i < 200; i++){
+    for(let i = 0; i < 500; i++){
         let x = Math.floor(Math.random() * Tile.count)
         let y = Math.floor(Math.random() * Tile.count)
         if(board[x][y] == Tile.start || board[x][y] == Tile.end){continue;}
@@ -168,7 +169,7 @@ function buttonRandom(board, openTiles, closedTiles){
 }
 
 class Tile{
-    static border = 4;
+    static border = 1;
     static size = 0;
     static count = 0;
     static start = null;
@@ -187,19 +188,13 @@ class Tile{
         this.path = false;
         this.neighbours = [];
 
-        this.outer = new fabric.Rect({
-            left: x * Tile.size,
-            top: y * Tile.size,
-            fill: 'black',
-            width: Tile.size,
-            height: Tile.size
-        });
         this.inner = new fabric.Rect({
             left: (x * Tile.size) + (Tile.border / 2),
             top: (y * Tile.size) + (Tile.border / 2),
-            fill: 'red',
             width: Tile.size - Tile.border,
-            height: Tile.size - Tile.border
+            height: Tile.size - Tile.border,
+            stroke : 'black',
+            strokeWidth : 2
         });
     }
 
@@ -217,7 +212,7 @@ class Tile{
         }else if(this.open){
             this.inner.set('fill', 'yellow');
         }else{
-            this.inner.set('fill', 'red');
+            this.inner.set('fill', 'orange');
         }
 
         this.f = this.g + this.h;
