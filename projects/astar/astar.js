@@ -18,24 +18,22 @@ function main(){
             canvas.add(board[y][x].inner);
         }
     }
-    var buttons = [new Button("Run", buttonRun, 60, Tile.size * Tile.count, 85, 40), new Button("Reset", buttonReset, 360, Tile.size * Tile.count, 115, 40)];
+    var buttons = [new Button("Run", buttonRun, 60, Tile.size * Tile.count, 85, 40), new Button("Reset", buttonReset, 600, Tile.size * Tile.count, 115, 40), new Button("Random", buttonRandom, 270, Tile.size * Tile.count, 175, 40)];
     for(let i in buttons){
-        buttons[i].group.selectable = false;
         canvas.add(buttons[i].group);
     }
 
-    init(board, openTiles);
+    init(board, openTiles, closedTiles);
     canvas.on('mouse:down', function(e){
         clickedMouse(e, board, openTiles, closedTiles, buttons);
     });
 }
 
-async function astar(board, openTiles, closedTiles){
-    openTiles[0].getNeighbours(board, openTiles, closedTiles);
+function astar(board, openTiles, closedTiles){
     while (openTiles.length > 0){
         let currentTile = openTiles[0];
 
-        for(let i in openTiles){ //tile has no f yet
+        for(let i in openTiles){
             let tile = openTiles[i];
             if(tile.f < currentTile.f || (tile.f == currentTile.f && tile.h < currentTile.h)){
                 currentTile = tile;
@@ -50,7 +48,6 @@ async function astar(board, openTiles, closedTiles){
             while(currentTile.parent !== null){
                 currentTile = currentTile.parent;
                 currentTile.path = true;
-                //await asyncDraw(currentTile);
 
                 currentTile.update();
                 path.push(currentTile);
@@ -89,11 +86,6 @@ async function astar(board, openTiles, closedTiles){
     }
 }
 
-async function asyncDraw(c){
-    c.update();
-    await new Promise(r => setTimeout(r, 30));
-}
-
 function distance(pos1, pos2){
     let dx = Math.abs(pos1[0] - pos2[0]);
     let dy = Math.abs(pos1[1] - pos2[1]);
@@ -104,7 +96,7 @@ function distance(pos1, pos2){
     return (diagonal * 14) + (straight * 10); //Ints are better
 }
 
-function init(board, openTiles){
+function init(board, openTiles, closedTiles){
     let start = board[Tile.count - 1][0];
     let end = board[0][Tile.count - 1];
     Tile.start = start;
@@ -113,11 +105,7 @@ function init(board, openTiles){
     Tile.end = end;
     end.update();
     start.h = start.f = end.g = end.f = distance([start.x, start.y], [end.x, end.y]);
-    obstacles();
-
-    function obstacles(){
-        board[10][9].toggleObstacle();
-    }
+    buttonRandom(board, openTiles, closedTiles);
 }
 
 function clickedMouse(e, board, openTiles, closedTiles, buttons){
@@ -167,6 +155,16 @@ function buttonReset(board, openTiles, closedTiles){
     openTiles.length = 0;
     openTiles.push(Tile.start)
     closedTiles.length = 0;
+}
+
+function buttonRandom(board, openTiles, closedTiles){
+    buttonReset(board, openTiles, closedTiles);
+    for(let i = 0; i < 200; i++){
+        let x = Math.floor(Math.random() * Tile.count)
+        let y = Math.floor(Math.random() * Tile.count)
+        if(board[x][y] == Tile.start || board[x][y] == Tile.end){continue;}
+        board[x][y].toggleObstacle();
+    }
 }
 
 class Tile{
@@ -294,6 +292,8 @@ class Button{
             left: x,
             top: y
         });
+        
+        this.group.selectable = false;
     }
 }
 
