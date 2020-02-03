@@ -5,7 +5,7 @@ function main(){
     var openTiles = [];
     var closedTiles = [];
     var board = [];
-    Tile.count = 20
+    Tile.count = 20;
     Tile.size = (canvas.width / Tile.count);
 
     for(let y = 0; y < Tile.count; y++){
@@ -79,10 +79,8 @@ async function astar(board, openTiles, closedTiles){
                 neighbours[i].g = x;
                 neighbours[i].parent = currentTile;
             }else if(x < neighbours[i].g){
-                console.log("g improved");
                 neighbours[i].g = x;
                 neighbours[i].parent = currentTile;
-
             }
 
             neighbours[i].h = distance([Tile.end.x, Tile.end.y], [neighbours[i].x, neighbours[i].y]);
@@ -115,6 +113,11 @@ function init(board, openTiles){
     Tile.end = end;
     end.update();
     start.h = start.f = end.g = end.f = distance([start.x, start.y], [end.x, end.y]);
+    obstacles();
+
+    function obstacles(){
+        board[10][9].toggleObstacle();
+    }
 }
 
 function clickedMouse(e, board, openTiles, closedTiles, buttons){
@@ -148,7 +151,7 @@ function clickedMouse(e, board, openTiles, closedTiles, buttons){
 }
 
 function buttonRun(board, openTiles, closedTiles){
-    let x = astar(board, openTiles, closedTiles);
+    astar(board, openTiles, closedTiles);
 }
 
 function buttonReset(board, openTiles, closedTiles){
@@ -245,7 +248,6 @@ class Tile{
     }
 
     getNeighbours(board, openTiles, closedTiles){
-        //this.neighbours = []; //Could try to find a way to cache, maybe compare with templist instead?
         if(this.neighbours != []){
             for(let y = (this.y - 1); y <= (this.y + 1); y++){
                 for(let x = (this.x - 1); x <= (this.x + 1); x++){
@@ -256,17 +258,8 @@ class Tile{
                     if(xNotOnBoard || yNotOnBoard){continue;}
 
                     let neighbour = board[y][x];
-
-                    let flag = false; //Ugly, but needed to continue the correct loop
-                    for(let i in closedTiles){
-                        let tile = closedTiles[i];
-                        if(tile === neighbour){
-                            flag = true;
-                        }
-                    }
-                    if(flag){continue;}
-
                     if(neighbour.obstacle){continue;}
+                    if(closedTiles.includes(neighbour)){continue;}
 
                     this.neighbours.push(neighbour);
                 }
@@ -283,8 +276,6 @@ class Button{
         this.y = y;
         this.width = width;
         this.height = height;
-
-
 
         this.button = new fabric.Rect({
             fill: 'black',
