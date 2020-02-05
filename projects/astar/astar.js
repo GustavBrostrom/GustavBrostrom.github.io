@@ -37,7 +37,7 @@ function main(){
         if(isOnBoard){mouseTile = getMouseTile(mousePos, board);}
         mouseDrag = true;
 
-        clickedMouse(mousePos, board, openTiles, closedTiles, buttons, distField, isOnBoard);
+        clickedMouse(mousePos, board, openTiles, closedTiles, buttons, distField, isOnBoard, canvas);
     });
 
     canvas.on('mouse:move', function(e){
@@ -57,10 +57,16 @@ function main(){
     canvas.renderAll();
 }
 
-function astar(board, openTiles, closedTiles){
-    while (openTiles.length > 0){
-        let currentTile = openTiles[0];
+async function asyncDraw(canvas){
+    await new Promise(r => setTimeout(r, 5));
+    canvas.renderAll();
+}
 
+async function astar(board, openTiles, closedTiles, canvas){
+    while (openTiles.length > 0){
+        await asyncDraw(canvas);
+
+        let currentTile = openTiles[0];
         for(let i in openTiles){
             let tile = openTiles[i];
             if(tile.f < currentTile.f || (tile.f == currentTile.f && tile.h < currentTile.h)){
@@ -145,7 +151,7 @@ function getMouseTile(mousePos, board){
     return board[y][x];
 }
 
-function clickedMouse(mousePos, board, openTiles, closedTiles, buttons, distField, isOnBoard){
+function clickedMouse(mousePos, board, openTiles, closedTiles, buttons, distField, isOnBoard, canvas){
     if (isOnBoard) {
         clickedBoard();
     }else{
@@ -155,7 +161,7 @@ function clickedMouse(mousePos, board, openTiles, closedTiles, buttons, distFiel
     function clickedButton(){
         for(let i = 0; i < buttons.length; i++){
             if(isOnRect(mousePos, buttons[i])){
-                buttons[i].func(board, openTiles, closedTiles, distField);
+                buttons[i].func(board, openTiles, closedTiles, distField, canvas);
                 break;
             }
         }
@@ -163,8 +169,6 @@ function clickedMouse(mousePos, board, openTiles, closedTiles, buttons, distFiel
         function isOnRect(pos, rect){
             return pos.x > rect.x && pos.x < rect.x+rect.width && pos.y < rect.y+rect.height && pos.y > rect.y;
         }
-
-        
     }
 
     function clickedBoard(){
@@ -173,12 +177,14 @@ function clickedMouse(mousePos, board, openTiles, closedTiles, buttons, distFiel
     }
 }
 
-function buttonRun(board, openTiles, closedTiles, distField){
-    let path = astar(board, openTiles, closedTiles);
+async function buttonRun(board, openTiles, closedTiles, distField, canvas){
+    let path = await astar(board, openTiles, closedTiles, canvas);
     if(path.length != 0){
         displayDist(path[0].g, distField);
+        canvas.renderAll();
     }else{
         displayDist(NaN, distField);
+        canvas.renderAll();
     }
 }
 
