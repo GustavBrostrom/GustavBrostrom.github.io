@@ -1,14 +1,18 @@
 function main(){
-    var canvas = new fabric.Canvas('canvas');
+    let canvas = new fabric.Canvas('canvas');
     canvas.hoverCursor = 'pointer';
     canvas.renderOnAddRemove=false
     canvas.skipTargetFind=false;
+    canvas.selection = false;
 
-    var openTiles = [];
-    var closedTiles = [];
-    var board = [];
+    let openTiles = [];
+    let closedTiles = [];
+    let board = [];
     Tile.count = 30;
     Tile.size = (canvas.width / Tile.count);
+    let mouseDrag = false;
+    let mouseTile = null;
+    let newTile = null
 
     for(let y = 0; y < Tile.count; y++){
         board.push([]);
@@ -18,15 +22,38 @@ function main(){
             canvas.add(board[y][x].inner);
         }
     }
-    var buttons = [new Button("Run", buttonRun, 60, Tile.size * Tile.count, 85, 40), new Button("Reset", buttonReset, 600, Tile.size * Tile.count, 115, 40), new Button("Random", buttonRandom, 270, Tile.size * Tile.count, 175, 40)];
-    for(let i in buttons){
-        canvas.add(buttons[i].group);
-    }
+
+    const BUTTON_HEIGHT = 40
+    let buttons = [new Button("Run", buttonRun, 50, Tile.size * Tile.count, 85, BUTTON_HEIGHT), new Button("Reset", buttonReset, 730, Tile.size * Tile.count, 120, BUTTON_HEIGHT), new Button("Random", buttonRandom, 530, Tile.size * Tile.count, 172, BUTTON_HEIGHT)];
+    let distField = new Button("Dist: ", null, 140, Tile.size * Tile.count, 200, BUTTON_HEIGHT);
+    for(let i in buttons){canvas.add(buttons[i].group);}
+    canvas.add(distField.group);
 
     init(board, openTiles, closedTiles);
+
     canvas.on('mouse:down', function(e){
-        clickedMouse(e, board, openTiles, closedTiles, buttons);
+        let mousePos = e.pointer;
+        let isOnBoard = (mousePos.y < Tile.size * board[0].length);
+        if(isOnBoard){mouseTile = getMouseTile(mousePos, board);}
+        mouseDrag = true;
+
+        clickedMouse(mousePos, board, openTiles, closedTiles, buttons, distField, isOnBoard);
     });
+
+    canvas.on('mouse:move', function(e){
+        let mousePos = e.pointer;
+        let isOnBoard = (mousePos.y < Tile.size * board[0].length);
+        if(isOnBoard){newTile = getMouseTile(mousePos, board);}
+
+        if(mouseDrag && isOnBoard && newTile !== mouseTile){
+            mouseTile = newTile;
+            mouseTile.toggleObstacle();
+            canvas.renderAll();
+        }
+    });
+
+    canvas.on('mouse:up', function(e){mouseDrag = false;});
+
     canvas.renderAll();
 }
 
@@ -85,6 +112,7 @@ function astar(board, openTiles, closedTiles){
             neighbours[i].update();
         }
     }
+    return [];
 }
 
 function distance(pos1, pos2){
@@ -100,19 +128,25 @@ function distance(pos1, pos2){
 function init(board, openTiles, closedTiles){
     let start = board[Tile.count - 1][0];
     let end = board[0][Tile.count - 1];
+    start.g = end.h = 0;
+    start.h = start.f = end.g = end.f = distance([start.x, start.y], [end.x, end.y]);
+    openTiles.length = closedTiles.length = 0;
     Tile.start = start;
     start.update();
     openTiles.push(start);
     Tile.end = end;
     end.update();
-    start.h = start.f = end.g = end.f = distance([start.x, start.y], [end.x, end.y]);
-    buttonRandom(board, openTiles, closedTiles);
 }
 
-function clickedMouse(e, board, openTiles, closedTiles, buttons){
-    var mousePos = e.pointer;
+function getMouseTile(mousePos, board){
+    let x = Math.floor(Math.ceil(mousePos.x) / Tile.size);
+    if(x == Tile.count){x--;} //Ugly fix, but better than leaving a bug
+    let y = Math.floor(Math.ceil(mousePos.y) / Tile.size);
+    return board[y][x];
+}
 
-    if (mousePos.y < Tile.size * board[0].length) {
+function clickedMouse(mousePos, board, openTiles, closedTiles, buttons, distField, isOnBoard){
+    if (isOnBoard) {
         clickedBoard();
     }else{
         clickedButton();
@@ -121,7 +155,7 @@ function clickedMouse(e, board, openTiles, closedTiles, buttons){
     function clickedButton(){
         for(let i = 0; i < buttons.length; i++){
             if(isOnRect(mousePos, buttons[i])){
-                buttons[i].func(board, openTiles, closedTiles);
+                buttons[i].func(board, openTiles, closedTiles, distField);
                 break;
             }
         }
@@ -129,21 +163,26 @@ function clickedMouse(e, board, openTiles, closedTiles, buttons){
         function isOnRect(pos, rect){
             return pos.x > rect.x && pos.x < rect.x+rect.width && pos.y < rect.y+rect.height && pos.y > rect.y;
         }
+
+        
     }
 
     function clickedBoard(){
-        let x = Math.floor(Math.ceil(mousePos.x) / Tile.size);
-        if(x == Tile.count){x--;} //Ugly fix, but better than leaving a bug
-        let y = Math.floor(Math.ceil(mousePos.y) / Tile.size);
-        board[y][x].toggleObstacle();
+        let tile = getMouseTile(mousePos, board);
+        tile.toggleObstacle();
     }
 }
 
-function buttonRun(board, openTiles, closedTiles){
-    astar(board, openTiles, closedTiles);
+function buttonRun(board, openTiles, closedTiles, distField){
+    let path = astar(board, openTiles, closedTiles);
+    if(path.length != 0){
+        displayDist(path[0].g, distField);
+    }else{
+        displayDist(NaN, distField);
+    }
 }
 
-function buttonReset(board, openTiles, closedTiles){
+function buttonReset(board, openTiles, closedTiles, distField){
     for(let y = 0; y < Tile.count; y++){
         for(let x = 0; x < Tile.count; x++){
             board[y][x].g = board[y][x].f = Number.MAX_SAFE_INTEGER;
@@ -153,19 +192,25 @@ function buttonReset(board, openTiles, closedTiles){
             board[y][x].update();
         }
     }
-    openTiles.length = 0;
-    openTiles.push(Tile.start)
-    closedTiles.length = 0;
+    displayDist("", distField);
+    init(board, openTiles, closedTiles);
 }
 
-function buttonRandom(board, openTiles, closedTiles){
-    buttonReset(board, openTiles, closedTiles);
-    for(let i = 0; i < 500; i++){
-        let x = Math.floor(Math.random() * Tile.count)
-        let y = Math.floor(Math.random() * Tile.count)
-        if(board[x][y] == Tile.start || board[x][y] == Tile.end){continue;}
-        board[x][y].toggleObstacle();
+function buttonRandom(board, openTiles, closedTiles, distField){
+    buttonReset(board, openTiles, closedTiles, distField);
+    for(let i = 0; i < 60; i++){
+        let x = Math.ceil(Math.random() * (Tile.count - 4)) + 1
+        let y = Math.ceil(Math.random() * (Tile.count - 4)) + 1
+        for(let i = -1; i <= 1; i++){
+            for(let j = -1; j <= 1; j++){ 
+                board[y + j][x + i].toggleObstacle();
+            }
+        }
     }
+}
+
+function displayDist(d, distField){
+    distField.text.set('text', "Dist:" + d);
 }
 
 class Tile{
@@ -191,6 +236,7 @@ class Tile{
         this.inner = new fabric.Rect({
             left: (x * Tile.size) + (Tile.border / 2),
             top: (y * Tile.size) + (Tile.border / 2),
+            fill: 'orange',
             width: Tile.size - Tile.border,
             height: Tile.size - Tile.border,
             stroke : 'black',
@@ -271,16 +317,19 @@ class Button{
         this.height = height;
 
         this.button = new fabric.Rect({
-            fill: 'black',
+            fill: 'grey',
             width: width,
             height: height,
-            originY: 'center'
+            originY: 'center',
+            stroke : 'black',
+            strokeWidth : 2
         });
 
         this.text = new fabric.Text(text, {
-            fontSize: '50',
-            fill: 'green',
-            originY: 'center'
+            fontSize: '45',
+            fill: 'black',
+            originY: 'center',
+            fontFamily: 'arial'
         });
 
         this.group = new fabric.Group([this.button, this.text], {
