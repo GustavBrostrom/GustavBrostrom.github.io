@@ -106,7 +106,7 @@ async function astar(board, openTiles, closedTiles, canvas){
             }
 
             if(index == -1){
-                openTiles.push(neighbours[i]);
+                neighbours[i].toOpen(openTiles);
                 neighbours[i].g = x;
                 neighbours[i].parent = currentTile;
             }else if(x < neighbours[i].g){
@@ -138,8 +138,8 @@ function init(board, openTiles, closedTiles){
     start.h = start.f = end.g = end.f = distance([start.x, start.y], [end.x, end.y]);
     openTiles.length = closedTiles.length = 0;
     Tile.start = start;
+    start.toOpen(openTiles);
     start.update();
-    openTiles.push(start);
     Tile.end = end;
     end.update();
 }
@@ -191,11 +191,7 @@ async function buttonRun(board, openTiles, closedTiles, distField, canvas){
 function buttonReset(board, openTiles, closedTiles, distField){
     for(let y = 0; y < Tile.count; y++){
         for(let x = 0; x < Tile.count; x++){
-            board[y][x].g = board[y][x].f = Number.MAX_SAFE_INTEGER;
-            board[y][x].h = 0;
-            board[y][x].open = board[y][x].closed = board[y][x].obstacle = board[y][x].path = false;
-            board[y][x].neighbours = [];
-            board[y][x].update();
+            board[y][x].reset();
         }
     }
     displayDist("", distField);
@@ -240,8 +236,8 @@ class Tile{
         this.neighbours = [];
 
         this.inner = new fabric.Rect({
-            left: (x * Tile.size) + (Tile.border / 2),
-            top: (y * Tile.size) + (Tile.border / 2),
+            left: x * Tile.size,
+            top: y * Tile.size,
             fill: 'orange',
             width: Tile.size - Tile.border,
             height: Tile.size - Tile.border,
@@ -277,11 +273,11 @@ class Tile{
     }
 
     toClosed(openTiles, closedTiles){
-        let index = openTiles.indexOf(this);
-        if(index != -1){
+        if(this.open){
+            let index = openTiles.indexOf(this);
             openTiles.splice(index, 1);
+            this.open = false;  
         }
-        this.open = false;
         closedTiles.push(this);
         this.closed = true;
         this.update();
@@ -289,6 +285,14 @@ class Tile{
 
     toggleObstacle(){
         this.obstacle = !this.obstacle;
+        this.update();
+    }
+
+    reset(){
+        this.g = this.f = Number.MAX_SAFE_INTEGER;
+        this.h = 0;
+        this.open = this.closed = this.obstacle = this.path = false;
+        this.neighbours = [];
         this.update();
     }
 
