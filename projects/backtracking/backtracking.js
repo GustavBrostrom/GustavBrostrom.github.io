@@ -7,7 +7,7 @@ async function solve(canvas, board, y = 0, x = 0) {
         }  
     }
     
-    if (board[y][x] != 0) {  // Won't check if board is written incorrectly, can be made to do so at performance cost
+    if (board[y][x].number != 0) {  // Won't check if board is written incorrectly, can be made to do so at performance cost
         if (await solve(canvas, board, y, x + 1)) {
             return true;
         } else {
@@ -16,10 +16,10 @@ async function solve(canvas, board, y = 0, x = 0) {
     }
 
     for (let i = 1; i <= 9; i++) {
-        if (validplacement(i, y, x)) {
+        if (validplacement(i, y, x, board)) {
             if (halt){return true;}
 
-            board[y][x] = i;
+            board[y][x].setNumber(i);
             await asyncDraw(canvas);
 
             if (await solve(canvas, board, y, x + 1)) {
@@ -28,32 +28,35 @@ async function solve(canvas, board, y = 0, x = 0) {
         }
         if (halt){return true;}
 
-        board[y][x] = 0;
-        await asyncDraw();
+        board[y][x].setNumber(0);
+        await asyncDraw(canvas);
     }
     return false;
+
+    
+
+    async function asyncDraw(canvas){
+        await new Promise(r => setTimeout(r, 20));
+        canvas.renderAll();
+    }
 }
 
-async function asyncDraw(){
-    await new Promise(r => setTimeout(r, 10));
-    canvas.renderAll();
-}
-
-function validplacement(numb, row, col) {
-    for (let i = 0; i < board[row].length; i++) {
-        if (board[row][i] == numb) {return false;}
+function validplacement(numb, x, y, board) {
+    console.log(board[y][x].number)
+    for (let i = 0; i < board[y].length; i++) {
+        if (board[y][i].number == numb) {return false;}
     }
 
     let column = []
     for (let i = 0; i < board.length; i++) {
-        column.push(board[i][col]);
+        column.push(board[i][x]);
     }
     for (let i = 0; i < column.length; i++) {
-        if (column[i] == numb) {return false;}
+        if (column[i].number == numb) {return false;}
     }
 
-    quadrow = Math.floor(row / 3) * 3;
-    quadcol = Math.floor(col / 3) * 3;
+    quadrow = Math.floor(y / 3) * 3;
+    quadcol = Math.floor(x / 3) * 3;
     let quad = [[],[],[]]
     for (let i = quadrow; i < quadrow+3; i++) {
         for (let j = quadcol; j < quadcol+3; j++) {
@@ -62,7 +65,7 @@ function validplacement(numb, row, col) {
     }
     for (let i = 0; i < quad.length; i++) {
         for (let j = 0; j < quad[i].length; j++) {
-            if (quad[i][j] == numb) {return false;}
+            if (quad[i][j].number == numb) {return false;}
         }
     }
     return true;
@@ -94,53 +97,75 @@ function main(){
     let boardValues = getNewBoard();
     let board = [];
     canvas.hoverCursor = 'pointer';
-    //canvas.renderOnAddRemove=false
+    canvas.renderOnAddRemove=false
     canvas.skipTargetFind=false;
     canvas.selection = false;
-    
-    let cells = 9
-    Cell.size = Math.floor((canvas.width / cells));
-    console.log(Cell.size)
-    const BUTTON_HEIGHT = 40
-    let buttons = [new Button("Run", buttonRun, 60, 480, 85, 40), new Button("New", buttonNew, 320, 480, 92, 40), new Button("Blank", buttonBlank, 176, 480, 110, 40)];
-    for(let i in buttons){canvas.add(buttons[i].group);}
 
-    for(let y = 0; y < cells; y++){
+    Cell.size = Math.floor((canvas.width / 9));
+    let gridSize = Cell.size * 9
+    const BUTTON_HEIGHT = 40
+    let buttons = [new Button("Run", buttonRun, 60, gridSize, 85, BUTTON_HEIGHT), new Button("New", buttonNew, 320, gridSize, 92, BUTTON_HEIGHT), new Button("Blank", buttonBlank, 176, gridSize, 110, BUTTON_HEIGHT)];
+    for(let i in buttons){canvas.add(buttons[i].group);}
+    setBoard(canvas, board, boardValues);
+
+    let guides = [[], []];
+    drawGuide(canvas, guides);
+
+    let halt = false;
+    Cell.selectedCell = null;
+
+    canvas.on('mouse:down', function(e){
+        clickedMouse(e.pointer, board, buttons, canvas);
+    });
+    document.addEventListener('keyup', function (e){
+        pressedKey(e, canvas, board);
+    });
+    canvas.renderAll();
+}
+
+function setBoard(canvas, board, boardValues){
+    for(let y = 0; y < 9; y++){
         board.push([]);
-        for(let x = 0; x < cells; x++){
+        for(let x = 0; x < 9; x++){
             board[y][x]=new Cell(x, y);
-            board[y][x].number = String(boardValues[y][x]);
-            //board[y][x].group.selectable = false;
-            //canvas.add(board[y][x].group);
-            board[y][x].cell.selectable = false;
             canvas.add(board[y][x].cell);
-            board[y][x].text.selectable = false;
             canvas.add(board[y][x].text);
+            board[y][x].setNumber(boardValues[y][x]);
             
             canvas.renderAll();
         }
     }
+}
 
-    let halt = false;
-    let selectedCell = null;
+function drawGuide(canvas, guides){
+    let width = 5;
+    let center = (width - 1) / 2;
+    let color = 'black';
+    for(let i = 0; i < 4; i++){
+        guides[1][i] = new fabric.Line([0, ((i * 3) * Cell.size) - center, Cell.size * 9, ((i * 3) * Cell.size) - center], {
+            strokeWidth: width,
+            stroke: color
+        });
+        guides[1][i].selectable = false;
+        canvas.add(guides[1][i]);
 
-    canvas.on('mouse:down', function(e){
-        clickedMouse(e.pointer, board, buttons, canvas, selectedCell);
-    });
-    document.addEventListener('keyup', pressedKey);
-    canvas.renderAll();
+        guides[0][i] = new fabric.Line([((i * 3) * Cell.size) - center, 0, ((i * 3) * Cell.size) - center, Cell.size * 9], {
+            strokeWidth: width,
+            stroke: color
+        });
+        guides[0][i].selectable = false;
+        canvas.add(guides[0][i]);
+    }
 }
 
 function clearSelected(){
-    selectedRow = NaN;
-    selectedColumn = NaN;
+    Cell.selectedCell = null;
 }
 
-function clickedMouse(mousePos, board, buttons, canvas, selectedCell){
+function clickedMouse(mousePos, board, buttons, canvas){
     let isOnBoard = (mousePos.y < Cell.size * board[0].length);
     if (isOnBoard) {
-        selectedCell = getMouseCell(mousePos, board);
-        console.log(selectedCell)
+        Cell.selectedCell = getMouseCell(mousePos, board);
     }else{
         clickedButton();
     }
@@ -148,7 +173,7 @@ function clickedMouse(mousePos, board, buttons, canvas, selectedCell){
     function clickedButton(){
         for(let i = 0; i < buttons.length; i++){
             if(isOnRect(mousePos, buttons[i])){
-                buttons[i].func(canvas, board);
+                buttons[i].func(canvas, board, Cell.selectedCell);
             }
         }
 
@@ -180,29 +205,42 @@ async function buttonRun(canvas, board){
 
 function buttonNew(canvas, board){
     halt = true;
-    board = getNewBoard();
+    boardValues = getNewBoard();
+    replaceBoard(board, boardValues);
     clearSelected();
+
+    function replaceBoard(board, boardValues){
+        for(let y = 0; y < 9; y++){
+            for(let x = 0; x < 9; x++){
+                board[y][x].setNumber(boardValues[y][x]);
+            }
+        }
+    }
 }
 
 function buttonBlank(canvas, board){
     halt = true;
-    board = [Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0)];
+    for(let y = 0; y < 9; y++){
+        for(let x = 0; x < 9; x++){
+            board[y][x].setNumber(0);
+        }
+    }
     clearSelected();
 }
 
-function pressedKey(evt){
-    key = Number(evt.code.charAt(evt.code.length - 1))
-    if (!isNaN(key) && !isNaN(selectedRow)){
-        if (validplacement(key, selectedColumn, selectedRow)){
-            board[selectedColumn][selectedRow] = key;
-            redrawCanvas();
+function pressedKey(evt, canvas, board){
+    key = Number(evt.code.charAt(evt.code.length - 1));
+    if (!isNaN(key) && Cell.selectedCell !== null){
+        if (validplacement(key, Cell.selectedCell.x, Cell.selectedCell.y, board)){
+            board[Cell.selectedCell.y][Cell.selectedCell.x] = key;
+            canvas.renderAll();
         }
     }
 }
 
 class Cell{
-    static border = 1;
     static size = 0;
+    static selectedCell = null;
 
     constructor(x, y){
         this.x = x;
@@ -212,9 +250,9 @@ class Cell{
         this.cell = new fabric.Rect({
             left: x * Cell.size,
             top: y * Cell.size,
-            fill: 'orange',
-            width: Cell.size - Cell.border,
-            height: Cell.size - Cell.border,
+            fill: 'white',
+            width: Cell.size,
+            height: Cell.size,
             stroke : 'black',
             strokeWidth : 2
         });
@@ -222,15 +260,18 @@ class Cell{
         this.text = new fabric.Text(this.number, {
             fontSize: '45',
             fill: 'black',
-            left: x * Cell.size + 13,
+            left: (x * Cell.size) + (Cell.size * 0.22),
             top: y * Cell.size,
             fontFamily: 'arial'
         });
 
-        //this.group = new fabric.Group([this.cell, this.text], {
-        //    left: x,
-        //    top: y
-        //});
+        this.cell.selectable = false;
+        this.text.selectable = false;
+    }
+
+    setNumber(number){
+        this.number = String(number);
+        this.text.set('text', this.number);
     }
 
     update(){
