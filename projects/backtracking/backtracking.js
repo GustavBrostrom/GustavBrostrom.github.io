@@ -1,13 +1,14 @@
-async function solve(row = 0, col = 0) {
-    if (col >= canvas.board.length) {
-        row += 1;
-        col = 0;
-        if (row >= canvas.board[col].length) {
+async function solve(canvas, board, y = 0, x = 0) {
+    if (x >= board.length) {
+        y += 1;
+        x = 0;
+        if (y >= board[x].length) {
             return true;
         }  
     }
-    if (canvas.board[row][col] != 0) {  // Won't check if board is written incorrectly, can be made to do so at performance cost
-        if (await solve(row, col + 1)) {
+    
+    if (board[y][x] != 0) {  // Won't check if board is written incorrectly, can be made to do so at performance cost
+        if (await solve(canvas, board, y, x + 1)) {
             return true;
         } else {
             return false;
@@ -15,37 +16,37 @@ async function solve(row = 0, col = 0) {
     }
 
     for (let i = 1; i <= 9; i++) {
-        if (validplacement(i, row, col)) {
-            if (canvas.halt){return true;}
+        if (validplacement(i, y, x)) {
+            if (halt){return true;}
 
-            canvas.board[row][col] = i;
-            await asyncDraw();
+            board[y][x] = i;
+            await asyncDraw(canvas);
 
-            if (await solve(row, col + 1)) {
+            if (await solve(canvas, board, y, x + 1)) {
                 return true;
             }
         }
-        if (canvas.halt){return true;}
+        if (halt){return true;}
 
-        canvas.board[row][col] = 0;
+        board[y][x] = 0;
         await asyncDraw();
     }
     return false;
 }
 
 async function asyncDraw(){
-    await new Promise(r => setTimeout(r, 30));
-    redrawCanvas();
+    await new Promise(r => setTimeout(r, 10));
+    canvas.renderAll();
 }
 
 function validplacement(numb, row, col) {
-    for (let i = 0; i < canvas.board[row].length; i++) {
-        if (canvas.board[row][i] == numb) {return false;}
+    for (let i = 0; i < board[row].length; i++) {
+        if (board[row][i] == numb) {return false;}
     }
 
     let column = []
-    for (let i = 0; i < canvas.board.length; i++) {
-        column.push(canvas.board[i][col]);
+    for (let i = 0; i < board.length; i++) {
+        column.push(board[i][col]);
     }
     for (let i = 0; i < column.length; i++) {
         if (column[i] == numb) {return false;}
@@ -56,7 +57,7 @@ function validplacement(numb, row, col) {
     let quad = [[],[],[]]
     for (let i = quadrow; i < quadrow+3; i++) {
         for (let j = quadcol; j < quadcol+3; j++) {
-            quad[i - quadrow][j - quadcol] = canvas.board[i][j];
+            quad[i - quadrow][j - quadcol] = board[i][j];
         }
     }
     for (let i = 0; i < quad.length; i++) {
@@ -65,12 +66,6 @@ function validplacement(numb, row, col) {
         }
     }
     return true;
-}
-
-
-function main() {
-    let board = getNewBoard();
-    setupCanvas(board);
 }
 
 function getNewBoard(){
@@ -93,186 +88,187 @@ function getNewBoard(){
     return board;
 }
 
-function setupCanvas(board){
-    canvas = document.getElementById("sodoku");
-    canvas.board = board;
-    canvas.gridSize = 450
-    canvas.cellSize = 50
-    canvas.margin = 5
-    canvas.buttons = [new Button("Run", buttonRun, 60, 480, 85, 40), new Button("New", buttonNew, 320, 480, 92, 40), new Button("Blank", buttonBlank, 176, 480, 110, 40)];
-    canvas.dim = canvas.getBoundingClientRect;
-    canvas.halt = false;
-    canvas.selectedRow = NaN;
-    canvas.selectedColumn = NaN;
-    ctx = canvas.getContext("2d");
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 3;
-    drawCanvas();
-    canvas.addEventListener('click', clickedMouse);
+function main(){
+    'use strict';
+    let canvas = new fabric.Canvas('sudoku');
+    let boardValues = getNewBoard();
+    let board = [];
+    canvas.hoverCursor = 'pointer';
+    //canvas.renderOnAddRemove=false
+    canvas.skipTargetFind=false;
+    canvas.selection = false;
+    
+    let cells = 9
+    Cell.size = Math.floor((canvas.width / cells));
+    console.log(Cell.size)
+    const BUTTON_HEIGHT = 40
+    let buttons = [new Button("Run", buttonRun, 60, 480, 85, 40), new Button("New", buttonNew, 320, 480, 92, 40), new Button("Blank", buttonBlank, 176, 480, 110, 40)];
+    for(let i in buttons){canvas.add(buttons[i].group);}
+
+    for(let y = 0; y < cells; y++){
+        board.push([]);
+        for(let x = 0; x < cells; x++){
+            board[y][x]=new Cell(x, y);
+            board[y][x].number = String(boardValues[y][x]);
+            //board[y][x].group.selectable = false;
+            //canvas.add(board[y][x].group);
+            board[y][x].cell.selectable = false;
+            canvas.add(board[y][x].cell);
+            board[y][x].text.selectable = false;
+            canvas.add(board[y][x].text);
+            
+            canvas.renderAll();
+        }
+    }
+
+    let halt = false;
+    let selectedCell = null;
+
+    canvas.on('mouse:down', function(e){
+        clickedMouse(e.pointer, board, buttons, canvas, selectedCell);
+    });
     document.addEventListener('keyup', pressedKey);
-}
-
-
-function drawCanvas(){
-    drawGrid(canvas.margin, canvas.margin, canvas.gridSize + canvas.margin, canvas.gridSize + canvas.margin);
-    drawTextOnGrid();
-    for(let i = 0; i < canvas.buttons.length; i++){
-        drawButton(canvas.buttons[i]);
-    }
-    drawSelected();
-}
-
-function drawSelected(){
-    if(!isNaN(canvas.selectedRow)){
-        ctx.beginPath();
-        x = (canvas.selectedColumn * canvas.cellSize) + canvas.margin;
-        y = (canvas.selectedRow * canvas.cellSize) + canvas.margin;
-        ctx.lineWidth = 7;
-        ctx.rect(x, y, canvas.cellSize, canvas.cellSize);
-        ctx.stroke();
-    }
+    canvas.renderAll();
 }
 
 function clearSelected(){
-    canvas.selectedRow = NaN;
-    canvas.selectedColumn = NaN;
+    selectedRow = NaN;
+    selectedColumn = NaN;
 }
 
-function redrawCanvas(){
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawCanvas();
-}
-
-function drawLine(x1, y1, x2, y2){
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-}
-
-function drawGrid(x1, y1, x2, y2){
-    for (let i = 0; i < 10; i++){
-        if (i % 3 == 0){ctx.lineWidth = 5;}
-        else {ctx.lineWidth = 3;}
-        drawLine(x1 + (canvas.cellSize * i), y1, x1 + (canvas.cellSize * i), y2);
-        drawLine(x1, y1 + (canvas.cellSize * i), x2, y1 + (canvas.cellSize * i));
+function clickedMouse(mousePos, board, buttons, canvas, selectedCell){
+    let isOnBoard = (mousePos.y < Cell.size * board[0].length);
+    if (isOnBoard) {
+        selectedCell = getMouseCell(mousePos, board);
+        console.log(selectedCell)
+    }else{
+        clickedButton();
     }
-}
 
-function drawTextOnGrid(){
-    for (let i = 0; i < 9; i++){
-        for (let j = 0; j < 9; j++){
-            if(canvas.board[i][j] != 0){
-                drawText(canvas.board[i][j], (canvas.cellSize * i) + 19, (canvas.cellSize * j) + 48);
+    function clickedButton(){
+        for(let i = 0; i < buttons.length; i++){
+            if(isOnRect(mousePos, buttons[i])){
+                buttons[i].func(canvas, board);
             }
         }
-    }
-}
 
-function drawText(text, x, y, font = "40px arial"){
-    ctx.font = font;
-    ctx.fillText(text, x, y);
-}
-
-function drawButton(button){
-    ctx.lineWidth = 3;
-    ctx.rect(button.x, button.y, button.width, button.height);
-    ctx.stroke();
-    drawText(button.text, button.x + canvas.margin, button.y + button.height - canvas.margin);
-}
-
-function clickedMouse(evt) {
-    var mousePos = getMousePos(evt);
-    if(mousePos.y >= canvas.dim().height * 0.825){
-       clickedButton(mousePos); 
-    }
-    else{
-        clickedBoard(mousePos);
-    }
-}
-
-function clickedButton(mousePos){
-    for(let i = 0; i < canvas.buttons.length; i++){
-        if(isOnRect(mousePos, canvas.buttons[i])){
-            canvas.buttons[i].func();
+        function isOnRect(pos, rect){
+            return pos.x > rect.x && pos.x < rect.x+rect.width && pos.y < rect.y+rect.height && pos.y > rect.y;
         }
     }
-}
 
-function clickedBoard(mousePos){
-    canvas.selectedColumn = Math.floor((mousePos.x - canvas.margin) / canvas.cellSize);
-    canvas.selectedRow = Math.floor((mousePos.y - canvas.margin) / canvas.cellSize);
-    redrawCanvas();
+    function getMouseCell(mousePos, board){
+        let x = Math.floor(Math.ceil(mousePos.x) / Cell.size);
+        let y = Math.floor(Math.ceil(mousePos.y) / Cell.size);
+        return board[y][x];
+    }
 }
 
 function unsolvable(){
     drawText("Unsolvable", 8, 260, "90px arial");
 }
 
-async function buttonRun(){
-    canvas.halt = false;
+async function buttonRun(canvas, board){
+    console.log(board)
+    halt = false;
     clearSelected();
-    let solvable = await solve();
+    let solvable = await solve(canvas, board);
     if(!solvable){
         unsolvable();
     }
 }
 
-function buttonNew(){
-    canvas.halt = true;
-    canvas.board = getNewBoard();
+function buttonNew(canvas, board){
+    halt = true;
+    board = getNewBoard();
     clearSelected();
-    redrawCanvas();
 }
 
-function buttonBlank(){
-    canvas.halt = true;
-    canvas.board = [Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0)];
+function buttonBlank(canvas, board){
+    halt = true;
+    board = [Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(9).fill(0)];
     clearSelected();
-    redrawCanvas();
-}
-
-function isOnRect(pos, rect){
-    return pos.x > rect.x && pos.x < rect.x+rect.width && pos.y < rect.y+rect.height && pos.y > rect.y;
-}
-
-function getMousePos(evt){
-    let rect = canvas.getBoundingClientRect();
-    mousePos.x = Math.floor(evt.clientX - rect.left);
-    mousePos.y = Math.floor(evt.clientY - rect.top);
-    return mousePos;
 }
 
 function pressedKey(evt){
     key = Number(evt.code.charAt(evt.code.length - 1))
-    if (!isNaN(key) && !isNaN(canvas.selectedRow)){
-        if (validplacement(key, canvas.selectedColumn, canvas.selectedRow)){
-            canvas.board[canvas.selectedColumn][canvas.selectedRow] = key;
+    if (!isNaN(key) && !isNaN(selectedRow)){
+        if (validplacement(key, selectedColumn, selectedRow)){
+            board[selectedColumn][selectedRow] = key;
             redrawCanvas();
         }
     }
 }
 
-class MousePosition{
+class Cell{
+    static border = 1;
+    static size = 0;
+
     constructor(x, y){
         this.x = x;
         this.y = y;
+        this.number = "0";
+
+        this.cell = new fabric.Rect({
+            left: x * Cell.size,
+            top: y * Cell.size,
+            fill: 'orange',
+            width: Cell.size - Cell.border,
+            height: Cell.size - Cell.border,
+            stroke : 'black',
+            strokeWidth : 2
+        });
+
+        this.text = new fabric.Text(this.number, {
+            fontSize: '45',
+            fill: 'black',
+            left: x * Cell.size + 13,
+            top: y * Cell.size,
+            fontFamily: 'arial'
+        });
+
+        //this.group = new fabric.Group([this.cell, this.text], {
+        //    left: x,
+        //    top: y
+        //});
+    }
+
+    update(){
+        console.log("x");
     }
 }
 
 class Button{
     constructor(text, func, x, y, width, height){
-        this.text = text;
         this.func = func;
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
+
+        this.button = new fabric.Rect({
+            fill: 'grey',
+            width: width,
+            height: height,
+            originY: 'center',
+            stroke : 'black',
+            strokeWidth : 2
+        });
+
+        this.text = new fabric.Text(text, {
+            fontSize: '45',
+            fill: 'black',
+            originY: 'center',
+            fontFamily: 'arial'
+        });
+
+        this.group = new fabric.Group([this.button, this.text], {
+            left: x,
+            top: y
+        });
+        
+        this.group.selectable = false;
     }
 }
-
-let canvas;
-let ctx;
-let mousePos = new MousePosition(0, 0);
 
 document.addEventListener("DOMContentLoaded", main);
