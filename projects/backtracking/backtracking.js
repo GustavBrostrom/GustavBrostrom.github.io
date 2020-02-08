@@ -1,4 +1,4 @@
-async function solve(canvas, board, y = 0, x = 0) {
+async function solve(canvas, board, y, x) {
     if (x >= board.length) {
         y += 1;
         x = 0;
@@ -16,8 +16,8 @@ async function solve(canvas, board, y = 0, x = 0) {
     }
 
     for (let i = 1; i <= 9; i++) {
-        if (validplacement(i, y, x, board)) {
-            if (halt){return true;}
+        if (validplacement(i, x, y, board)) {
+            if (canvas.halt){return true;}
 
             board[y][x].setNumber(i);
             await asyncDraw(canvas);
@@ -26,14 +26,13 @@ async function solve(canvas, board, y = 0, x = 0) {
                 return true;
             }
         }
-        if (halt){return true;}
+        if (canvas.halt){return true;}
 
         board[y][x].setNumber(0);
         await asyncDraw(canvas);
     }
     return false;
 
-    
 
     async function asyncDraw(canvas){
         await new Promise(r => setTimeout(r, 20));
@@ -42,7 +41,6 @@ async function solve(canvas, board, y = 0, x = 0) {
 }
 
 function validplacement(numb, x, y, board) {
-    console.log(board[y][x].number)
     for (let i = 0; i < board[y].length; i++) {
         if (board[y][i].number == numb) {return false;}
     }
@@ -71,11 +69,11 @@ function validplacement(numb, x, y, board) {
     return true;
 }
 
-function getNewBoard(){
+async function getNewBoard(){
     board = [[], [], [], [], [], [], [], [], []]
     var result = null;
     var xmlhttp = new XMLHttpRequest();
-    xmlhttp.open("GET", "sudoku.csv", false);  // Change to async
+    xmlhttp.open("GET", "sudoku.csv", false); //Change to async
     xmlhttp.send();
     if (xmlhttp.status==200) {
       result = xmlhttp.responseText;
@@ -91,15 +89,16 @@ function getNewBoard(){
     return board;
 }
 
-function main(){
+async function main(){
     'use strict';
     let canvas = new fabric.Canvas('sudoku');
-    let boardValues = getNewBoard();
+    let boardValues = await getNewBoard();
     let board = [];
     canvas.hoverCursor = 'pointer';
     canvas.renderOnAddRemove=false
     canvas.skipTargetFind=false;
     canvas.selection = false;
+    canvas.halt = false;
 
     Cell.size = Math.floor((canvas.width / 9));
     let gridSize = Cell.size * 9
@@ -111,7 +110,6 @@ function main(){
     let guides = [[], []];
     drawGuide(canvas, guides);
 
-    let halt = false;
     Cell.selectedCell = null;
 
     canvas.on('mouse:down', function(e){
@@ -120,6 +118,7 @@ function main(){
     document.addEventListener('keyup', function (e){
         pressedKey(e, canvas, board);
     });
+    
     canvas.renderAll();
 }
 
@@ -173,7 +172,7 @@ function clickedMouse(mousePos, board, buttons, canvas){
     function clickedButton(){
         for(let i = 0; i < buttons.length; i++){
             if(isOnRect(mousePos, buttons[i])){
-                buttons[i].func(canvas, board, Cell.selectedCell);
+                buttons[i].func(canvas, board);
             }
         }
 
@@ -189,23 +188,32 @@ function clickedMouse(mousePos, board, buttons, canvas){
     }
 }
 
-function unsolvable(){
-    drawText("Unsolvable", 8, 260, "90px arial");
-}
 
 async function buttonRun(canvas, board){
-    console.log(board)
-    halt = false;
+    canvas.halt = false;
     clearSelected();
-    let solvable = await solve(canvas, board);
+    let solvable = await solve(canvas, board, 0, 0);
     if(!solvable){
-        unsolvable();
+        unsolvable(canvas);
+    }
+    
+    function unsolvable(canvas){
+        let x = new fabric.Text("Unsolvable", {
+            fontSize: '90',
+            fill: 'red',
+            left: 0,
+            top: 3.5 * Cell.size,
+            fontFamily: 'arial'
+        });
+        x.width = 400; //Weird bug
+        canvas.add(x);
+        canvas.renderAll();
     }
 }
 
-function buttonNew(canvas, board){
-    halt = true;
-    boardValues = getNewBoard();
+async function buttonNew(canvas, board){
+    canvas.halt = true;
+    boardValues = await getNewBoard();
     replaceBoard(board, boardValues);
     clearSelected();
 
@@ -219,7 +227,7 @@ function buttonNew(canvas, board){
 }
 
 function buttonBlank(canvas, board){
-    halt = true;
+    canvas.halt = true;
     for(let y = 0; y < 9; y++){
         for(let x = 0; x < 9; x++){
             board[y][x].setNumber(0);
@@ -229,13 +237,21 @@ function buttonBlank(canvas, board){
 }
 
 function pressedKey(evt, canvas, board){
-    key = Number(evt.code.charAt(evt.code.length - 1));
-    if (!isNaN(key) && Cell.selectedCell !== null){
-        if (validplacement(key, Cell.selectedCell.x, Cell.selectedCell.y, board)){
-            board[Cell.selectedCell.y][Cell.selectedCell.x] = key;
-            canvas.renderAll();
+    let key = evt.code;
+    if(key == "Backspace"){
+        board[Cell.selectedCell.y][Cell.selectedCell.x].setNumber(0);
+    }else{
+        let num = Number(key.charAt(evt.code.length - 1));
+        if (!isNaN(num) && Cell.selectedCell !== null){
+            if(num == 0){
+                board[Cell.selectedCell.y][Cell.selectedCell.x].setNumber(0);
+            }else if (validplacement(num, Cell.selectedCell.x, Cell.selectedCell.y, board)){
+                board[Cell.selectedCell.y][Cell.selectedCell.x].setNumber(num);
+            }
         }
     }
+
+    canvas.renderAll();
 }
 
 class Cell{
@@ -271,7 +287,11 @@ class Cell{
 
     setNumber(number){
         this.number = String(number);
-        this.text.set('text', this.number);
+        if(this.number == "0"){
+            this.text.set('text', "");
+        }else{
+            this.text.set('text', this.number);
+        }
     }
 
     update(){
