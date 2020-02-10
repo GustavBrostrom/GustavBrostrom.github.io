@@ -7,13 +7,11 @@ function main(){
     const container = new PIXI.Container();
     app.stage.addChild(container);
     
-
     let boids = [];
-    const BOID_COUNT = 200;
-    const SPEED = 5;
+    const BOID_COUNT = 20;
+    const SPEED = 3;
     const TURN_RATE =  Math.PI / 100;
     let angle = Math.PI/2;
-    //limit turning angle
     let texture = PIXI.Texture.from('boid2.png');
 
     boids.push(new Boid(new PIXI.Sprite(texture)));
@@ -32,24 +30,45 @@ function main(){
         container.addChild(boids[boids.length - 1].boid);
     }
 
-    app.ticker.add((delta) => {
+    app.ticker.add((delta) => { // 3rd rule: direct towards center of other boids
         for(let i = 0; i < BOID_COUNT; i++){
             angle = periodic(boids[i].boid.rotation + TURN_RATE);
             let newAngle = angle;
-            for(let j = 0; j < BOID_COUNT; j++){
+            let {dist, wall} = boids[i].distanceToWall();
+            if(dist <= Boid.AVOIDANCE_RADIUS){
+                //TODO Wall avoidance
+                
+            }
+
+            let closeBoids = [];
+            for(let j = 0; j < BOID_COUNT; j++){ // Currently it will follow the boid with highest ID
                 if(i == j){continue;}
                 let boidAngle = boids[i].angleTo(boids[j]);
-                if(boids[i].distanceTo(boids[j]) < Boid.DETECTION_RADIUS && Math.abs(boidAngle) < Boid.DETECTION_ANGLE){
+                if(boids[i].distanceTo(boids[j]) < Boid.DETECTION_RADIUS && Math.abs(boidAngle) < Boid.DETECTION_ANGLE){ // Should take from each boid
+                    if(boids[i].distanceTo(boids[j]) < Boid.AVOIDANCE_RADIUS || false){
+                        newAngle = (Math.sign(-boidAngle) * Boid.MAX_TURN_ANGLE) + boids[i].boid.rotation;
+                        break;
+                    }
+
+                    closeBoids.push(boids[j]);
+
                     newAngle = boidAngle / 2;
-                    if(Math.abs(newAngle - boids[i].boid.rotation) > Boid.MAX_TURN_ANGLE){
-                        newAngle = (Math.sign(boidAngle) * Boid.MAX_TURN_ANGLE) + boids[i].boid.rotation;
+                    if(Math.abs(newAngle - boids[i].boid.rotation) > Boid.MAX_TURN_ANGLE){ // Wanna make it less fixed, maybe
+                        newAngle = (boidAngle * 0.01) + boids[i].boid.rotation;
                     }
                     //boids[i].update(SPEED * .1, newAngle);
                 }
             }
-            boids[i].update(SPEED, newAngle);
+            let combAngle = 0;
+
+            for(let k = 0; k < closeBoids.length; k++){
+                console.log(combAngle)
+                combAngle += boids[i].angleTo(closeBoids[k]);
+            }
+            combAngle = (combAngle / closeBoids.length) / 2;
+            //console.log(closeBoids.length)
+            boids[i].update(SPEED, combAngle);
         }
-        console.log(boids[0].boid.rotation)
     });
 }
 
@@ -66,8 +85,8 @@ function periodic(angle){
 class Boid{ //Prob gonna rewrite
     static DETECTION_RADIUS = 400;
     static DETECTION_ANGLE = 3 * Math.PI / 4;
-    static AVOIDANCE_RADIUS = 20;
-    static MAX_TURN_ANGLE = Math.PI / 120;
+    static AVOIDANCE_RADIUS = 10;
+    static MAX_TURN_ANGLE = Math.PI / 12000;
 
     constructor(boid){
         this.boid = boid;
@@ -89,7 +108,34 @@ class Boid{ //Prob gonna rewrite
         }
     }
 
-    distanceTo(other){
+    distanceToWall(){
+        let x1 = this.boid.x;
+        let x2 = 768 - x1;
+        let y1 = this.boid.y;
+        let y2 = 768 - y1;
+        let min = Math.min(x1, x2, y1, y2);
+        let wall = "";
+        switch(min){
+            case x1:
+                 wall = "left";
+                break;
+            case x2:
+                 wall = "right";
+                break;
+            case y1:
+                 wall = "top";
+                break;
+            case y2:
+                 wall = "bottom";
+        }
+
+        return {
+            dist: min,
+            wall: wall
+        };
+    }
+
+    distanceTo(other){ // Could be used for obstacle avoidance
         return Math.sqrt(((this.boid.x - other.boid.x) ** 2) + ((this.boid.y - other.boid.y) ** 2));
     }
 
