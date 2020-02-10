@@ -1,3 +1,5 @@
+"use strict";
+
 function main(){
     const app = new PIXI.Application({width: 768, height: 768});
     const x = document.querySelector('#canvas')
@@ -7,11 +9,11 @@ function main(){
     
 
     let boids = [];
-    const BOID_COUNT = 10;
-    const SPEED = 1;
+    const BOID_COUNT = 200;
+    const SPEED = 5;
+    const TURN_RATE =  Math.PI / 100;
     let angle = Math.PI/2;
     //limit turning angle
-    //limit seeing angle
     let texture = PIXI.Texture.from('boid2.png');
 
     boids.push(new Boid(new PIXI.Sprite(texture)));
@@ -22,7 +24,7 @@ function main(){
 
     texture = PIXI.Texture.from('boid.png');
 
-    for(let i = 0; i < BOID_COUNT; i++){
+    for(let i = 1; i < BOID_COUNT; i++){
         boids.push(new Boid(new PIXI.Sprite(texture)));
         boids[boids.length - 1].boid.anchor.set(0.5);
         let pos = [Math.floor(Math.random() * 768), Math.floor(Math.random() * 768)];
@@ -31,22 +33,24 @@ function main(){
     }
 
     app.ticker.add((delta) => {
-        angle = periodic(angle + Math.PI / 100);
-        for(let i = 0; i < boids.length; i++){
-            boids[i].update(SPEED, angle);
-            for(let j = 0; j < boids.length; j++){
+        for(let i = 0; i < BOID_COUNT; i++){
+            angle = periodic(boids[i].boid.rotation + TURN_RATE);
+            let newAngle = angle;
+            for(let j = 0; j < BOID_COUNT; j++){
                 if(i == j){continue;}
-                if(boids[i].distanceTo(boids[j]) < Boid.DETECTION_RADIUS && Math.abs(boids[i].angleTo(boids[j])) < Boid.DETECTION_ANGLE){
-                    boids[i].update(SPEED * 1, angle);
-                    continue;
+                let boidAngle = boids[i].angleTo(boids[j]);
+                if(boids[i].distanceTo(boids[j]) < Boid.DETECTION_RADIUS && Math.abs(boidAngle) < Boid.DETECTION_ANGLE){
+                    newAngle = boidAngle / 2;
+                    if(Math.abs(newAngle - boids[i].boid.rotation) > Boid.MAX_TURN_ANGLE){
+                        newAngle = (Math.sign(boidAngle) * Boid.MAX_TURN_ANGLE) + boids[i].boid.rotation;
+                    }
+                    //boids[i].update(SPEED * .1, newAngle);
                 }
             }
+            boids[i].update(SPEED, newAngle);
         }
+        console.log(boids[0].boid.rotation)
     });
-}
-
-function mod(n, m){ //JS % is remainder, not mod
-        return ((n % m) + m) % m;
 }
 
 function periodic(angle){
@@ -59,9 +63,12 @@ function periodic(angle){
     }
 }
 
-class Boid{
-    static DETECTION_RADIUS = 3000;
+class Boid{ //Prob gonna rewrite
+    static DETECTION_RADIUS = 400;
     static DETECTION_ANGLE = 3 * Math.PI / 4;
+    static AVOIDANCE_RADIUS = 20;
+    static MAX_TURN_ANGLE = Math.PI / 120;
+
     constructor(boid){
         this.boid = boid;
     }
@@ -75,6 +82,10 @@ class Boid{
         this.boid.y -= Math.cos(angle) * speed;
         if(this.boid.y >= 768 || this.boid.y < 0){
             this.boid.y = mod(this.boid.y, 768);
+        }
+
+        function mod(n, m){ //JS % is remainder, not mod
+            return ((n % m) + m) % m;
         }
     }
 
