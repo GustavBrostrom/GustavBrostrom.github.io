@@ -31,6 +31,8 @@ function main(){
         boids[boids.length - 1].boid.rotation = (Math.random() * 2 * Math.PI) - Math.PI;
     }
 
+    console.log(vectorAddition(new Vector(degToRad(90), 1), new Vector(degToRad(0), 1)));
+
     app.ticker.add((delta) => { // 3rd rule: direct towards center of other boids
         for(let i = 0; i < BOID_COUNT; i++){
             angle = periodic(boids[i].boid.rotation + TURN_RATE);
@@ -46,16 +48,16 @@ function main(){
             let flockAngle = 0;
             for(let j = 0; j < BOID_COUNT; j++){ // Currently it will follow the boid with highest ID
                 if(i == j){continue;}
-                let boidAngle = boids[i].angleTo(boids[j]);
-                if(boids[i].distanceTo(boids[j]) < Boid.DETECTION_RADIUS && Math.abs(boidAngle) < Boid.DETECTION_ANGLE){ // Should take from each boid
-                    if(boids[i].distanceTo(boids[j]) < Boid.AVOIDANCE_RADIUS){
-                        newAngle = (Math.sign(-boidAngle) * Boid.MAX_TURN_ANGLE) + boids[i].boid.rotation;
+                let boidVector = boids[i].vectorTo(boids[j]);
+                if(boidVector.scalar < Boid.DETECTION_RADIUS && Math.abs(boidVector.angle) < Boid.DETECTION_ANGLE){ // Should take from each boid
+                    if(boidVector.scalar < Boid.AVOIDANCE_RADIUS){
+                        newAngle = (Math.sign(-boidVector.angle) * Boid.MAX_TURN_ANGLE) + boids[i].getVect().angle;
                         tooCloseBoids.push(boids[j]);
                     }
 
                     closeBoids.push(boids[j]);
 
-                    flockAngle += (boidAngle * Boid.MAX_TURN_ANGLE) + boids[i].boid.rotation;
+                    flockAngle += (boidVector.angle * Boid.MAX_TURN_ANGLE) + boids[i].getVect().angle;
 
                     //newAngle = boidAngle / 2;
                     //if(Math.abs(newAngle - boids[i].boid.rotation) > Boid.MAX_TURN_ANGLE){ // Wanna make it less fixed, maybe
@@ -111,7 +113,7 @@ function main(){
             let adjustedSpeed = SPEED + ((closeDist + tooCloseDist) / 100);
             let adjustedAngle = flockAngle + ((closeAngle + tooCloseAngle) / 500);
 
-            boids[i].update(adjustedSpeed, adjustedAngle);
+            boids[i].update(new Vector(adjustedSpeed, adjustedAngle));
         }
     });
 }
@@ -126,15 +128,71 @@ function periodic(angle){
     }
 }
 
-function vectorAddition(){
-    //pass
+function vectorAddition(vect1, vect2){ // There might be precision loss due to float math?
+    let {x: x1, y: y1} = vect1.toCart();
+    let {x: x2, y: y2} = vect2.toCart();
+    let x = x1 + x2;
+    let y = y1 + y2;
+    return new Cartesian(x, y).toVect();
+}
+
+class Vector{
+    constructor(angle, scalar){
+        this.angle = angle;
+        this.scalar = scalar;
+    }
+
+    toCart(){
+        let x = this.scalar * Math.cos(this.angle);
+        let y = this.scalar * Math.sin(this.angle);
+        return new Cartesian(x, y);
+    }
+
+    limit(limit){
+        this.scalar = Math.min(this.scalar, limit);
+    }
+
+    toDeg(){
+        return this.angle * 180 / Math.PI;
+    }
+
+    periodic(){ // Might need it
+        if(this.angle > Math.PI){
+            return this.angle - 2 * Math.PI;
+        }else if(this.angle < -Math.PI){
+            return this.angle + 2 * Math.PI;
+        }else{
+            return this.angle;
+        }
+    }
+}
+
+class Cartesian{
+    constructor(x, y){
+        this.x = x;
+        this.y = y;
+    }
+
+    toVect(){
+         let scalar = Math.sqrt(this.x ** 2 + this.y ** 2)
+         let angle = Math.atan2(this.y, this.x);
+         return new Vector(angle, scalar);
+    }
+}
+
+function radToDeg(rad){
+    return rad * 180 / Math.PI;
+}
+
+function degToRad(deg){
+    return deg * Math.PI / 180;
 }
 
 // Keep clear view, get v-shape formation?
 
 class Boid{ //Prob gonna rewrite
     static DETECTION_RADIUS = 200;
-    static DETECTION_ANGLE = 3 * Math.PI / 4;
+    static DETECTION_ANGLE = 3 * Math.PI / 4; // 135 deg
     static AVOIDANCE_RADIUS = 10;
     static MAX_TURN_ANGLE = Math.PI / 12000;
 
@@ -142,13 +200,13 @@ class Boid{ //Prob gonna rewrite
         this.boid = boid;
     }
 
-    update(speed, angle){
-        this.boid.rotation = angle;
-        this.boid.x += Math.sin(angle) * speed;
+    update(vector){
+        this.boid.rotation = vector.angle;
+        this.boid.x += Math.sin(vector.angle) * vector.scalar;
         if(this.boid.x >= 768 || this.boid.x < 0){
             this.boid.x = mod(this.boid.x, 768);
         }
-        this.boid.y -= Math.cos(angle) * speed;
+        this.boid.y -= Math.cos(vector.angle) * vector.scalar;
         if(this.boid.y >= 768 || this.boid.y < 0){
             this.boid.y = mod(this.boid.y, 768);
         }
@@ -158,10 +216,22 @@ class Boid{ //Prob gonna rewrite
         }
     }
 
+    getCart(){return new Cartesian(this.boid.x, this.boid.y);} // Never though I'd write getters and setters out of my own free will
+
+    setCart(cart){this.boid.position.set(cart.x, cart.y);}
+
+    getVect(){return this.getCart().toVect();}
+
+    setVect(vect){
+        let cart = vect.toCart();
+        this.boid.position.set(cart.x, cart.y);
+    }
+
     distanceToWall(){
-        let x1 = this.boid.x;
+        let boidCart = this.getCart();
+        let x1 = boidCart.x;
         let x2 = 768 - x1;
-        let y1 = this.boid.y;
+        let y1 = boidCart.y;
         let y2 = 768 - y1;
         let min = Math.min(x1, x2, y1, y2);
         let wall = "";
@@ -186,23 +256,28 @@ class Boid{ //Prob gonna rewrite
     }
 
     distanceTo(other){ // Could be used for obstacle avoidance
-        return Math.sqrt(((this.boid.x - other.boid.x) ** 2) + ((this.boid.y - other.boid.y) ** 2));
+        let thisBoid = this.getCart();
+        let otherBoid = other.getCart();
+        return Math.sqrt(((thisBoid.x - otherBoid.x) ** 2) + ((thisBoid.y - otherBoid.y) ** 2));
     }
 
-    distanceToPoint(x, y){
-        return Math.sqrt(((this.boid.x - x) ** 2) + ((this.boid.y - y) ** 2));
+    distanceToPoint(cart){
+        let thisBoid = this.getCart();
+        return Math.sqrt(((thisBoid.x - cart.x) ** 2) + ((thisBoid.y - cart.y) ** 2));
     }
 
-    angleTo(other){
-        let z = (-(Math.atan2((this.boid.y - other.boid.y), (other.boid.x - this.boid.x)) - Math.PI / 2)) - this.boid.rotation;
+    vectorTo(other){
+        let thisBoid = this.getCart();
+        let otherBoid = other.getCart();
+        let z = (-(Math.atan2((thisBoid.y - otherBoid.y), (otherBoid.x - thisBoid.x)) - Math.PI / 2)) - this.boid.rotation; // Maybe rewrite
         if(z > Math.PI){ //Works, but ugly
             z -= 2 * Math.PI;
         }
-        return z;
+        return new Vector(z, this.distanceTo(other));
     }
 
-    angleToPoint(x, y){
-        let z = (-(Math.atan2((this.boid.y - y), (x - this.boid.x)) - Math.PI / 2)) - this.boid.rotation;
+    angleToPoint(cart){
+        let z = (-(Math.atan2((this.boid.y - cart.y), (cart.x - this.boid.x)) - Math.PI / 2)) - this.boid.rotation;
         if(z > Math.PI){ //Works, but ugly
             z -= 2 * Math.PI;
         }
