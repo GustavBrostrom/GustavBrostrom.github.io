@@ -36,80 +36,76 @@ function main(){
             angle = periodic(boids[i].boid.rotation + TURN_RATE);
             let newAngle = angle;
             let {dist, wall} = boids[i].distanceToWall();
-            if(dist <= Boid.AVOIDANCE_RADIUS){
-                //TODO Wall avoidance
-                
-            }
 
             let closeBoids = [];
             let tooCloseBoids = [];
-            let flockAngle = 0;
             for(let j = 0; j < BOID_COUNT; j++){ // Currently it will follow the boid with highest ID
                 if(i == j){continue;}
                 let boidVector = boids[i].vectorTo(boids[j]);
                 if(boidVector.scalar < Boid.DETECTION_RADIUS && Math.abs(boidVector.angle) < Boid.DETECTION_ANGLE){ // Should take from each boid
                     if(boidVector.scalar < Boid.AVOIDANCE_RADIUS){
                         newAngle = (Math.sign(-boidVector.angle) * Boid.MAX_TURN_ANGLE) + boids[i].getVect().angle;
-                        tooCloseBoids.push(boids[j]);
+                        tooCloseBoids.push(boids[j]); //should I cut tooClose from close
                     }
 
                     closeBoids.push(boids[j]);
 
-                    flockAngle += (boidVector.angle * Boid.MAX_TURN_ANGLE) + boids[i].getVect().angle; // Gonna need some work here
+                    //flockAngle += (boidVector.angle * Boid.MAX_TURN_ANGLE) + boids[i].getVect().angle; // Gonna need some work here
+                    //flockAngle /= closeBoids.length;
                 }
             }
-
-            if(closeBoids.length != 0){
-                flockAngle /= closeBoids.length;
+            
+            let avoidVect = new Vector(0, 0);
+            if(dist <= Boid.AVOIDANCE_RADIUS){
+                //avoidVect = avoidWall()
             }
-
-            // alignVect
-
-            // avoidVect
 
             let cohereVect = cohere(boids[i], closeBoids);
 
             let separateVect = separate(boids[i], tooCloseBoids);
 
-            let adjustedVect = vectorAddition(new Vector(angle, SPEED), cohereVect, separateVect); //Gotta use the turn limiter
+            let alignVect = align(boids[i], closeBoids);
 
-            boids[i].update(adjustedVect); //Change apply force func
+            let adjustedVect = vectorAddition(cohereVect, separateVect, alignVect); //Gotta use the turn limiter
+
+            boids[i].applyForce(adjustedVect).move();
         }
     });
 }
 
-function separate(boid, vect, weight = .5){ //Could scale based on distance
+function separate(boid, vect, weight = .2){
     let tooCloseVect = new Vector(0, 0);
     for(let k = 0; k < vect.length; k++){
-        tooCloseVect = vectorAddition(tooCloseVect, boid.vectorTo(vect[k]));
+        let temp = boid.vectorTo(vect[k]).scale(1 / boid.distanceTo(vect[k]));
+        tooCloseVect = vectorAddition(tooCloseVect, temp);
     }
     tooCloseVect.inverse().scale(weight);
     return tooCloseVect;
 }
 
-function cohere(boid, vect, weight = .0001){
+function cohere(boid, vect, weight = .01){
     let closeVect = new Vector(0, 0);
     for(let k = 0; k < vect.length; k++){
-        closeVect = vectorAddition(closeVect, boid.vectorTo(vect[k]));
+        let temp = boid.vectorTo(vect[k]).scale(1 / boid.distanceTo(vect[k]));
+        closeVect = vectorAddition(closeVect, temp);
     }
     closeVect.scale(weight);
     return closeVect;
 }
 
-function align(boid, vect, weight = 1){ //Gotta figure this out
+function align(boid, vect, weight = .00001){
     let alignVect = new Vector(0, 0);
     for(let k = 0; k < vect.length; k++){
-        closeVect = vectorAddition(alignVect, boid.vectorTo(vect[k]));
+        let temp = vect[k].getVect().scale(1 / boid.distanceTo(vect[k]));
+        alignVect = vectorAddition(alignVect, vect[k].getVect());
     }
     alignVect.scale(weight);
     return alignVect;
 }
 
-function avoid(boid, vect, weight = 1){ //Gotta figure this out
+function avoidWall(boid, wall){ //Could make wall hold 90 deg
     let avoidVect = new Vector(0, 0);
-    for(let k = 0; k < vect.length; k++){
-        closeVect = vectorAddition(avoidVect, boid.vectorTo(vect[k]));
-    }
+    avoidVect = vectorAddition(avoidVect, boid.vectorTo(vect[k]));
     avoidVect.scale(weight);
     return avoidVect;
 }
@@ -147,9 +143,13 @@ class Vector{
         return new Cartesian(x, y);
     }
 
-    limit(limit){
+    scalarLimit(limit){
         this.scalar = Math.min(this.scalar, limit);
         return this;
+    }
+
+    angleLimit(baseAngle, limit){
+
     }
 
     scale(scale){
@@ -194,24 +194,31 @@ function degToRad(deg){return deg * Math.PI / 180;}
 
 // Keep clear view, get v-shape formation?
 
-// Do we want acceleration
 class Boid{ //Prob gonna rewrite
     static DETECTION_RADIUS = 200;
     static DETECTION_ANGLE = 3 * Math.PI / 4; // 135 deg
-    static AVOIDANCE_RADIUS = 10;
+    static AVOIDANCE_RADIUS = 30;
     static MAX_TURN_ANGLE = Math.PI / 12000;
+    static MAX_SPEED = 2;
 
     constructor(boid){
         this.boid = boid;
+        this.momentum = new Vector(0, 0);
     }
 
-    update(vector){
-        this.boid.rotation = vector.angle;
-        this.boid.x += Math.sin(vector.angle) * vector.scalar;
+    applyForce(force){
+        this.momentum = vectorAddition(this.momentum, force);
+        this.momentum.scalarLimit(Boid.MAX_SPEED);
+        return this;
+    }
+
+    move(){
+        this.boid.rotation = this.momentum.angle;
+        this.boid.x += Math.sin(this.momentum.angle) * this.momentum.scalar;
         if(this.boid.x >= 768 || this.boid.x < 0){
             this.boid.x = mod(this.boid.x, 768);
         }
-        this.boid.y -= Math.cos(vector.angle) * vector.scalar;
+        this.boid.y -= Math.cos(this.momentum.angle) * this.momentum.scalar;
         if(this.boid.y >= 768 || this.boid.y < 0){
             this.boid.y = mod(this.boid.y, 768);
         }
