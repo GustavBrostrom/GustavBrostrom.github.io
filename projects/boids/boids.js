@@ -73,27 +73,27 @@ function main(){
     });
 }
 
-function separate(boid, vect, weight = .2){
+function separate(boid, vect, weight = .000015){ //Make independant of number? Scale to max vel? .scale(1 / (vect.length)); vs .scalar = Boid.MAX_SPEED;
     let tooCloseVect = new Vector(0, 0);
     for(let k = 0; k < vect.length; k++){
         let temp = boid.vectorTo(vect[k]).scale(1 / boid.distanceTo(vect[k]));
         tooCloseVect = vectorAddition(tooCloseVect, temp);
     }
-    tooCloseVect.inverse().scale(weight);
+    tooCloseVect.inverse().scale(weight).scalar = Boid.MAX_SPEED;
     return tooCloseVect;
 }
 
-function cohere(boid, vect, weight = .01){
+function cohere(boid, vect, weight = .00001){ //Create a desired velocity? Use current velocity for check? Use prediciton via copy of boids?
     let closeVect = new Vector(0, 0);
     for(let k = 0; k < vect.length; k++){
-        let temp = boid.vectorTo(vect[k]).scale(1 / boid.distanceTo(vect[k]));
+        let temp = boid.vectorTo(vect[k]).scale(Boid.DETECTION_RADIUS - boid.distanceTo(vect[k]));
         closeVect = vectorAddition(closeVect, temp);
     }
-    closeVect.scale(weight);
+    closeVect.scale(weight).scalar = Boid.MAX_SPEED;
     return closeVect;
 }
 
-function align(boid, vect, weight = .00001){
+function align(boid, vect, weight = .00001){ //steering force formula (steer = desired - velocity)?
     let alignVect = new Vector(0, 0);
     for(let k = 0; k < vect.length; k++){
         let temp = vect[k].getVect().scale(1 / boid.distanceTo(vect[k]));
@@ -148,11 +148,12 @@ class Vector{
         return this;
     }
 
-    angleLimit(baseAngle, limit){
+    angleLimit(baseAngle, limit){ //write this
 
     }
 
     scale(scale){
+        if(scale === Infinity){scale = 0;}
         this.scalar *= scale;
         return this;
     }
@@ -192,12 +193,12 @@ function radToDeg(rad){return rad * 180 / Math.PI;}
 
 function degToRad(deg){return deg * Math.PI / 180;}
 
-// Keep clear view, get v-shape formation?
+// Keep clear view, get v-shape formation? Move latteraly away?
 
 class Boid{ //Prob gonna rewrite
     static DETECTION_RADIUS = 200;
     static DETECTION_ANGLE = 3 * Math.PI / 4; // 135 deg
-    static AVOIDANCE_RADIUS = 30;
+    static AVOIDANCE_RADIUS = 40;
     static MAX_TURN_ANGLE = Math.PI / 12000;
     static MAX_SPEED = 2;
 
