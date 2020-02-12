@@ -7,13 +7,13 @@ function main(){
     const container = new PIXI.Container();
     app.stage.addChild(container);
     
-    let boids = [];
+    const boids = [];
     const BOID_COUNT = 200;
     const SPEED = 1;
     const TURN_RATE =  Math.PI / 100;
     let angle = Math.PI/2;
-    let texture = PIXI.Texture.from('boid2.png');
 
+    let texture = PIXI.Texture.from('boid2.png'); //Testing boid
     boids.push(new Boid(new PIXI.Sprite(texture)));
     boids[boids.length - 1].boid.anchor.set(0.5);
     let pos = [Math.floor(Math.random() * 768), Math.floor(Math.random() * 768)];
@@ -30,8 +30,6 @@ function main(){
         container.addChild(boids[boids.length - 1].boid);
         boids[boids.length - 1].boid.rotation = (Math.random() * 2 * Math.PI) - Math.PI;
     }
-
-    console.log(vectorAddition(new Vector(degToRad(90), 1)).angle);
 
     app.ticker.add((delta) => { // 3rd rule: direct towards center of other boids
         for(let i = 0; i < BOID_COUNT; i++){
@@ -57,40 +55,63 @@ function main(){
 
                     closeBoids.push(boids[j]);
 
-                    flockAngle += (boidVector.angle * Boid.MAX_TURN_ANGLE) + boids[i].getVect().angle;
+                    flockAngle += (boidVector.angle * Boid.MAX_TURN_ANGLE) + boids[i].getVect().angle; // Gonna need some work here
                 }
             }
 
-            let closeVect = new Vector(0, 0);
             if(closeBoids.length != 0){
-                
                 flockAngle /= closeBoids.length;
-
-                for(let k = 0; k < closeBoids.length; k++){
-                    closeVect = vectorAddition(closeVect, boids[i].vectorTo(closeBoids[k]));
-                }
-                closeVect.scale(.0001);
             }
 
-            let tooCloseVect = new Vector(0, 0);
-            if(tooCloseBoids.length != 0){
-                for(let k = 0; k < tooCloseBoids.length; k++){
-                    tooCloseVect = vectorAddition(tooCloseVect, boids[i].vectorTo(tooCloseBoids[k]));
-                }
-                tooCloseVect.inverse().scale(.01);
-            }
+            // alignVect
 
-            let adjustedVect = vectorAddition(new Vector(flockAngle, SPEED), closeVect, tooCloseVect); //Gotta use the turn limiter
-            //let adjustedSpeed = SPEED + ((closeDist + tooCloseDist) / 100);
-            //let adjustedAngle = flockAngle + ((closeAngle + tooCloseAngle) / 500);
+            // avoidVect
 
-            boids[i].update(adjustedVect);
+            let cohereVect = cohere(boids[i], closeBoids);
+
+            let separateVect = separate(boids[i], tooCloseBoids);
+
+            let adjustedVect = vectorAddition(new Vector(angle, SPEED), cohereVect, separateVect); //Gotta use the turn limiter
+
+            boids[i].update(adjustedVect); //Change apply force func
         }
     });
 }
 
-function separate(){
-    //Pass
+function separate(boid, vect, weight = .5){ //Could scale based on distance
+    let tooCloseVect = new Vector(0, 0);
+    for(let k = 0; k < vect.length; k++){
+        tooCloseVect = vectorAddition(tooCloseVect, boid.vectorTo(vect[k]));
+    }
+    tooCloseVect.inverse().scale(weight);
+    return tooCloseVect;
+}
+
+function cohere(boid, vect, weight = .0001){
+    let closeVect = new Vector(0, 0);
+    for(let k = 0; k < vect.length; k++){
+        closeVect = vectorAddition(closeVect, boid.vectorTo(vect[k]));
+    }
+    closeVect.scale(weight);
+    return closeVect;
+}
+
+function align(boid, vect, weight = 1){ //Gotta figure this out
+    let alignVect = new Vector(0, 0);
+    for(let k = 0; k < vect.length; k++){
+        closeVect = vectorAddition(alignVect, boid.vectorTo(vect[k]));
+    }
+    alignVect.scale(weight);
+    return alignVect;
+}
+
+function avoid(boid, vect, weight = 1){ //Gotta figure this out
+    let avoidVect = new Vector(0, 0);
+    for(let k = 0; k < vect.length; k++){
+        closeVect = vectorAddition(avoidVect, boid.vectorTo(vect[k]));
+    }
+    avoidVect.scale(weight);
+    return avoidVect;
 }
 
 function periodic(angle){
